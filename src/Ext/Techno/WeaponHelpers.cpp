@@ -1,4 +1,5 @@
-﻿#include "Body.h"
+#include "Body.h"
+#include <Utilities/TargetEnvironment.h>
 
 #include <Ext/WeaponType/Body.h>
 #include <Ext/WarheadType/Body.h>
@@ -6,8 +7,15 @@
 // Compares two weapons and returns index of which one is eligible to fire against current target (0 = first, 1 = second), or -1 if neither works.
 int TechnoExt::PickWeaponIndex(TechnoClass* pThis, TechnoClass* pTargetTechno, AbstractClass* pTarget, int weaponIndexOne, int weaponIndexTwo, bool allowFallback, bool allowAAFallback)
 {
-	auto const pWeaponStructOne = pThis->GetWeapon(weaponIndexOne);
-	auto const pWeaponStructTwo = pThis->GetWeapon(weaponIndexTwo);
+	auto pWeaponStructOne = pThis->GetWeapon(weaponIndexOne);
+	auto pWeaponStructTwo = pThis->GetWeapon(weaponIndexTwo);
+	if (pTargetTechno && TargetEnvironment::Classify(pTargetTechno) == TargetEnvironment::Kind::Underwater)
+	{
+		if (pWeaponStructOne && UnderwaterInterop::WeaponPolicy(pWeaponStructOne->WeaponType) == 0)
+			pWeaponStructOne = nullptr;
+		if (pWeaponStructTwo && UnderwaterInterop::WeaponPolicy(pWeaponStructTwo->WeaponType) == 0)
+			pWeaponStructTwo = nullptr;
+	}
 
 	if (!pWeaponStructOne && !pWeaponStructTwo)
 		return -1;
@@ -22,7 +30,7 @@ int TechnoExt::PickWeaponIndex(TechnoClass* pThis, TechnoClass* pTargetTechno, A
 	CellClass* pTargetCell = nullptr;
 
 	// Ignore target cell for airborne and underground target technos.
-	if (pTarget && (!pTargetTechno || (!pTargetTechno->IsInAir() && pTargetTechno->InWhichLayer() != Layer::Underground)))
+	if (pTarget && (!pTargetTechno || (!pTargetTechno->IsInAir() && !TargetEnvironment::IsUnderground(pTargetTechno))))
 	{
 		if (auto const pObject = abstract_cast<ObjectClass*, true>(pTarget))
 			pTargetCell = pObject->GetCell();
@@ -59,7 +67,7 @@ int TechnoExt::PickWeaponIndex(TechnoClass* pThis, TechnoClass* pTargetTechno, A
 			if (pWeaponTwo->Projectile->AA)
 				secondIsAA = true;
 		}
-		else if (pTargetTechno->InWhichLayer() == Layer::Underground)
+		else if (TargetEnvironment::IsUnderground(pTargetTechno))
 		{
 			if (BulletTypeExt::Fetch(pWeaponTwo->Projectile)->AU)
 				secondIsAU = true;
@@ -391,6 +399,8 @@ bool TechnoExt::MultiWeaponCanFire(TechnoClass* const pThis, AbstractClass* cons
 	const auto pBulletType = pWeaponType->Projectile;
 
 	const auto pTechno = abstract_cast<TechnoClass*, true>(pTarget);
+	if (TargetEnvironment::RejectWeapon(pWeaponType, pTechno))
+		return false;
 	const bool isInAir = pTechno ? pTechno->IsInAir() : false;
 
 	const auto pOwner = pThis->Owner;

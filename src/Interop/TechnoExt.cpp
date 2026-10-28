@@ -33,3 +33,6 @@ DEFINE_EXPORT(HRESULT, RegisterCalculateSightCallback, CalculateSightCallback ca
 	TechnoExtInterop::CalculateSightCallbacks.push_back(callback);
 	return S_OK;
 }
+
+// Semantic target classification support for optional water-state providers.
+extern "C" __declspec(dllexport) unsigned __cdecl Phobos_GetTargetEnvironmentVersion() { return 2; }

@@ -1,4 +1,5 @@
-﻿#include <TunnelLocomotionClass.h>
+#include <TunnelLocomotionClass.h>
+#include <Utilities/TargetEnvironment.h>
 
 #include <Ext/Aircraft/Body.h>
 #include <Ext/Anim/Body.h>
@@ -1779,7 +1780,15 @@ DEFINE_HOOK(0x70023B, TechnoClass_MouseOverObject_AttackUnderGround, 0x5)
 	GET(TechnoClass*, pThis, ESI);
 	GET(const int, wpIdx, EAX);
 
-	if (pObject->IsSurfaced())
+	if (const auto target = abstract_cast<TechnoClass*>(pObject);
+		target && TargetEnvironment::Classify(target) == TargetEnvironment::Kind::Underwater)
+	{
+		const auto slot = pThis->GetWeapon(wpIdx);
+		if (slot && UnderwaterInterop::WeaponPolicy(slot->WeaponType) == 0)
+			return FireIsNotOK;
+	}
+
+	if (!TargetEnvironment::RequiresAU(pObject))
 		return FireIsOK;
 
 	auto const pWeapon = pThis->GetWeapon(wpIdx)->WeaponType;
@@ -1923,7 +1932,7 @@ DEFINE_HOOK(0x6F7E1E, TechnoClass_CanAutoTargetObject_AU, 0x6)
 	GET(TechnoClass*, pTarget, ESI);
 	GET(const int, height, EAX);
 
-	return height >= -20 || SelectAutoTarget_Context::AU || TechnoExt::Fetch(pTarget)->SpecialTracked ? Continue : ReturnFalse;
+	return TargetEnvironment::HeightGate(pTarget, height) || SelectAutoTarget_Context::AU || TechnoExt::Fetch(pTarget)->SpecialTracked ? Continue : ReturnFalse;
 }
 
 #pragma endregion

@@ -1,4 +1,4 @@
-﻿#include <Ext/Anim/Body.h>
+#include <Ext/Anim/Body.h>
 #include <Ext/Building/Body.h>
 #include <Ext/Bullet/Body.h>
 #include <Ext/Infantry/Body.h>
@@ -7,6 +7,7 @@
 #include <Ext/WarheadType/Body.h>
 #include <Ext/WeaponType/Body.h>
 #include <Utilities/GeneralUtils.h>
+#include <Utilities/TargetEnvironment.h>
 
 #include <cmath>
 
@@ -188,7 +189,7 @@ DEFINE_HOOK(0x6F36DB, TechnoClass_WhatWeaponShouldIUse, 0x8)
 			if (pSecondary
 				&& (allowFallback
 					|| ((allowAAFallback && pTargetTechno->IsInAir() && pSecondary->Projectile->AA)
-							|| (pTargetTechno->InWhichLayer() == Layer::Underground && BulletTypeExt::Fetch(pSecondary->Projectile)->AU))
+							|| (TargetEnvironment::IsUnderground(pTargetTechno) && BulletTypeExt::Fetch(pSecondary->Projectile)->AU))
 					|| TechnoExt::CanFireNoAmmoWeapon(pThis, pTypeExt->OwnerObject(), 1)))
 			{
 				if (!pShield->CanBeTargeted(pThis->GetWeapon(0)->WeaponType))
@@ -225,7 +226,7 @@ DEFINE_HOOK(0x6F37EB, TechnoClass_WhatWeaponShouldIUse_AntiAir, 0x6)
 
 		if (BulletTypeExt::Fetch(pSecondaryProj)->AU && !BulletTypeExt::Fetch(pPrimaryProj)->AU)
 		{
-			if (pTargetTechno->InWhichLayer() == Layer::Underground)
+			if (TargetEnvironment::IsUnderground(pTargetTechno))
 				return Secondary;
 		}
 	}
@@ -260,10 +261,12 @@ DEFINE_HOOK(0x6F3432, TechnoClass_WhatWeaponShouldIUse_Gattling, 0xA)
 		auto const pShield = pTargetExt->Shield.get();
 		auto const armor = pTargetTechno->GetTechnoType()->Armor;
 		const bool inAir = pTargetTechno->IsInAir();
-		const bool isUnderground = pTargetTechno->InWhichLayer() == Layer::Underground;
+		const bool isUnderground = TargetEnvironment::IsUnderground(pTargetTechno);
 
 		auto isWeaponValid = [&](WeaponTypeClass* pWeapon)
 			{
+				if (TargetEnvironment::RejectWeapon(pWeapon, pTargetTechno))
+					return false;
 				if (inAir && !pWeapon->Projectile->AA)
 					return false;
 				if (isUnderground && !BulletTypeExt::Fetch(pWeapon->Projectile)->AU)
@@ -617,14 +620,17 @@ DEFINE_HOOK(0x6FC749, TechnoClass_CanFire_AntiUnderground, 0x5)
 	GET(const Layer, layer, EAX);
 	GET(WeaponTypeClass* const, pWeapon, EDI);
 
-	switch (layer)
+	const auto kind = TargetEnvironment::Classify(abstract_cast<TechnoClass*>(R->EBX<AbstractClass*>()), layer);
+	if (kind == TargetEnvironment::Kind::Underwater && UnderwaterInterop::WeaponPolicy(pWeapon) == 0)
+		return Illegal;
+
+	switch (kind)
 	{
-	case Layer::Air:
-	case Layer::Top:
+	case TargetEnvironment::Kind::Air:
 		if (!pWeapon->Projectile->AA)
 			return Illegal;
 		break;
-	case Layer::Underground:
+	case TargetEnvironment::Kind::Underground:
 		if (!BulletTypeExt::Fetch(pWeapon->Projectile)->AU)
 			return Illegal;
 		break;
