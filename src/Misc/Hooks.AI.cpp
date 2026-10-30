@@ -3,6 +3,7 @@
 #include <Ext/Anim/Body.h>
 #include <Ext/Scenario/Body.h>
 #include <Ext/TerrainType/Body.h>
+#include <SessionClass.h>
 #include <Utilities/Macro.h>
 #include <Interop/FogOwner.h>
 
@@ -54,6 +55,12 @@ DEFINE_HOOK(0x55B6B3, LogicClass_AI_After, 0x5)
 
 	if (time > 0)
 	{
+		// 联机且迷雾开启时整体暂停弹坑渐隐：迷雾格子的跳过判定依赖本地雾状态
+		// （联机时各机不同），而渐隐最终会改动 SmudgeTypeIndex 这一全局格子
+		// 状态，双方会分叉（反同步）。迷雾关闭时各机判定一致，照常渐隐。
+		if (SessionClass::IsMultiplayer() && ScenarioClass::Instance->SpecialFlags.FogOfWar)
+			return 0;
+
 		auto& s = ScenarioExt::Global()->Smudges;
 
 		if (!s.empty())
@@ -495,7 +502,7 @@ namespace FoggedObjectHelper
 	{
 		char _[0x24];
 		int OverlayTypeIndex;           // +0x24 覆盖物：类型索引
-		ObjectTypeClass* BuildingType;  // +0x28 建筑：冻结时的 BuildingClass*（按 ObjectTypeClass* 读取）
+		HouseClass* Owner;              // +0x28 建筑：冻结时的所有者 House（0x4D0EF0 从 BuildingClass+0x21C 写入，不是建筑实例）
 		int OverlayData;                // +0x2C 覆盖物：数量
 		int FoggedType;                 // +0x30 类别：6=建筑 0x14=覆盖物 0x1D=弹坑
 		CoordStruct Position;           // +0x34 冻结时的位置
@@ -705,18 +712,6 @@ DEFINE_HOOK(0x4A9CA0, DisplayClass_RevealFogShroud_Reimplement, 0x8)
 
 	const auto pCell = pThis->GetCellAt(*pCellStruct);
 	const auto flags = pCell->Flags;
-
-		// Kaleidoscope fog-owner diag (first 8 owner-matching calls)
-	static int s_kdiag = 0;
-	if (PhobosFogOwner && pHouse == PhobosFogOwner && s_kdiag < 8)
-	{
-		++s_kdiag;
-		FILE* f = fopen("fog-diag.log", "a");
-		if (f)
-		{
-			fprintf(f, "reveal house=%p cell=(%d,%d) inc=%d PRE flags=%08X V=%d F=%d\n", (void*)pHouse, pCellStruct->X, pCellStruct->Y, increase ? 1 : 0, (unsigned)pCell->Flags, pCell->Visibility, pCell->Foggedness);
-		}
-	}
 
 	const bool edgeNotRevealed = !(flags & CellFlags::EdgeRevealed);
 	const bool shouldRadarRedraw = edgeNotRevealed || !(pCell->AltFlags & AltCellFlags::Mapped);
@@ -1406,7 +1401,10 @@ DEFINE_HOOK(0x441F60, BuildingClass_AfterDestruction_RemoveFoggedImage, 0x5)
 					const auto pItem = pVector->Items[i];
 					const auto pFields = reinterpret_cast<FoggedObjectFields*>(pItem);
 
-					if (pFields->FoggedType == 6 && pFields->BuildingType == reinterpret_cast<ObjectTypeClass*>(pThis) && pFields->Position == position)
+					// +0x28 存的是所有者 House 而非建筑实例（此前拿它比对建筑指针，
+					// 条件永远不成立、清理从未生效）；按类别 + 冻结位置匹配即可唯一
+					// 确定该建筑的冻结贴图
+					if (pFields->FoggedType == 6 && pFields->Position == position)
 					{
 						RemoveFoggedObject(pCell, pItem);
 						return 0;

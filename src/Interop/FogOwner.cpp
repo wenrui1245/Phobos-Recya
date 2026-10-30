@@ -123,20 +123,7 @@ DEFINE_EXPORT(HRESULT, Phobos_Fog_RevealSight, int cx, int cy, int sight, HouseC
 	const long long r2 = static_cast<long long>(sight) * sight;
 	typedef bool (__thiscall* RevealFn)(void*, CellStruct&, HouseClass*, bool);
 	auto reveal = reinterpret_cast<RevealFn>(0x4A9CA0);
-
-	static int s_rs = 0;
-	if (s_rs < 10)
-	{
-		++s_rs;
-		FILE* fopenDiag = 0;
-		FILE* f = 0;
-		f = fopen("fog-diag.log", "a");
-		if (f)
-		{
-			fprintf(f, "sight-call cx=%d cy=%d sight=%d inc=%d\n", cx, cy, sight, increase ? 1 : 0);
-			fclose(f);
-		}
-	}	auto map = reinterpret_cast<void*>(0x87F7E8);
+	auto map = reinterpret_cast<void*>(0x87F7E8);
 	for (int dy = -sight; dy <= sight; ++dy)
 	{
 		const int y = cy + dy;
