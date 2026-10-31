@@ -9,6 +9,15 @@
 
 #include <Ext/BuildingType/Body.h>
 
+namespace DualBuildingTemp
+{
+	// 0x42EB20 = BaseClass::取第一个待建节点（-1 = 不限类型），返回节点指针
+	inline BaseNodeClass* PickPendingNode(BaseClass* pBase)
+	{
+		return reinterpret_cast<BaseNodeClass*(__thiscall*)(BaseClass*, int)>(0x42EB20)(pBase, -1);
+	}
+}
+
 // AI 双建筑产线（主建筑 + 防御建筑并行）
 //
 // 原版 AI 的建筑生产只有单一产槽（HouseClass::ProducingBuildingTypeIndex），
