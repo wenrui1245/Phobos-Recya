@@ -1,6 +1,8 @@
 ﻿#pragma once
 #include <HouseClass.h>
 
+class FactoryClass;
+
 #include <Ext/HouseType/Body.h>
 
 #include <Utilities/Container.h>
@@ -72,6 +74,17 @@ public:
 	int LastBuiltNavalVehicleType;
 	int ProducingNavalUnitTypeIndex;
 
+	// AI 防御建筑产线（与主建筑产线并行，镜像 ProducingNavalUnitTypeIndex 的做法）：
+	// 主产线沿用原版 ProducingBuildingTypeIndex，防御建筑（BuildCat::Combat）的
+	// 产槽独立；工厂为挂在第一座建造厂上的独立 FactoryClass，完成后的放置经由
+	// Primary_ForDefenses 走与玩家一致的 Place 事件流程。
+	int ProducingDefenseBuildingTypeIndex;
+	FactoryClass* AIDefenseFactory;          // 防御产线工厂（瞬态，不入档）
+	bool AIDualPickCombatOnly;               // AI_Building 本轮节点挑选只取防御建筑（瞬态）
+
+	void UpdateAIDefenseProduction();
+	void ClearAIDefenseFactory();
+
 	// Factories that exist but don't count towards multiple factory bonus.
 	int NumAirpads_NonMFB;
 	int NumBarracks_NonMFB;
@@ -121,6 +134,9 @@ public:
 		, RestrictedFactoryPlants {}
 		, LastBuiltNavalVehicleType { -1 }
 		, ProducingNavalUnitTypeIndex { -1 }
+		, ProducingDefenseBuildingTypeIndex { -1 }
+		, AIDefenseFactory { nullptr }
+		, AIDualPickCombatOnly { false }
 		, CombatAlertTimer {}
 		, NumAirpads_NonMFB { 0 }
 		, NumBarracks_NonMFB { 0 }

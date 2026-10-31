@@ -149,7 +149,13 @@ DEFINE_HOOK(0x4FE0A3, HouseClass_AI_RaiseMoney_NavalProductionFix, 0x6)
 	GET(HouseClass* const, pThis, ESI);
 
 	if (auto const pExt = HouseExt::TryFetch(pThis))
+	{
 		pExt->ProducingNavalUnitTypeIndex = -1;
+
+		// AI 破产筹钱时同样放弃防御建筑产线（与主建筑产线一并被原版逻辑清空）
+		pExt->ClearAIDefenseFactory();
+		pExt->ProducingDefenseBuildingTypeIndex = -1;
+	}
 
 	return 0;
 }
