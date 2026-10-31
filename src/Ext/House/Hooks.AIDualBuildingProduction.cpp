@@ -67,9 +67,11 @@ DEFINE_HOOK(0x4FE3E9, HouseClass_AI_BuildingProduction_DualQueue, 0xD)
 	return (normalBusy && defenseBusy) ? Done : Continue;
 }
 
-// AI_Building 中的待建节点挑选调用（call BaseClass::GetPendingNode(-1)）。
-// 防御产线补位模式下临时遮蔽非 Combat 的待建节点，使本轮只挑中防御建筑。
-DEFINE_HOOK(0x4FE409, HouseClass_AI_BuildingProduction_PickNode, 0x5)
+// AI_Building 中的待建节点挑选调用（lea ecx,[ebp+0x5700]; push -1; call 0x42EB20，
+// 共 0xD 字节）。整体接管：需要遮蔽时先遮蔽、调用引擎挑选、再精确还原。
+// 注意必须整体替换这三条指令——若只替换 call 本身，自定义路径返回时原版
+// push 的 -1 参数会残留在栈上，导致函数尾声 ret 读到野地址（实测崩溃）。
+DEFINE_HOOK(0x4FE401, HouseClass_AI_BuildingProduction_PickNode, 0xD)
 {
 	enum { AfterPick = 0x4FE40E };
 
@@ -84,7 +86,10 @@ DEFINE_HOOK(0x4FE409, HouseClass_AI_BuildingProduction_PickNode, 0x5)
 	const bool needMask = pExt->AIDualPickCombatOnly || normalIdx != -1 || defenseIdx != -1;
 
 	if (!needMask)
-		return 0; // 原样执行被替换的 call
+	{
+		R->EAX(DualBuildingTemp::PickPendingNode(&pThis->Base));
+		return AfterPick;
+	}
 
 	auto& nodes = pThis->Base.BaseNodes;
 	std::vector<BaseNodeClass*> masked;
