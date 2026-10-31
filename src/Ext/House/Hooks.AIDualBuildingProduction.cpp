@@ -28,8 +28,8 @@ namespace DualBuildingTemp
 // 按"单产槽"设计，任何旁路写入都会使其队列状态自相矛盾而堵塞）。防御产线
 // 作为一条独立的旁路存在：
 //
-//   1. 主产线忙（原版正在生产一座非防御建筑）时，管理器扫描基地节点，取第一
-//      个待建的 Combat 节点作为防御产线任务（可负担性等检查与原版一致）；
+//   1. 所有待建的 Combat 节点一律由管理器承接为防御产线任务（可负担性等
+//      检查与原版一致），原版挑选永远选不到防御建筑；
 //   2. 在第一座建造厂上以独立 FactoryClass 生产（与原版 AI 工厂的创建方式
 //      一致：FactoryClass + DemandProduction）；
 //   3. 生产完成后在该节点自己的坐标发 Place 事件放置（沿用基地规划的位置），
@@ -122,10 +122,8 @@ void HouseExt::UpdateAIDefenseProduction()
 	}
 
 	// —— 获取新任务 ——
-	// 仅当主产线忙时启用并行（主产线空闲时原版自然会处理包括防御建筑在内的节点）
-	if (pThis->ProducingBuildingTypeIndex == -1)
-		return;
-
+	// 所有防御建筑需求一律由本产线承接（原版挑选已通过 0x4FE401 钩子排除
+	// Combat 节点），不依赖主产线是否空闲
 	if (pThis->ConYards.Count <= 0)
 		return;
 
@@ -137,8 +135,7 @@ void HouseExt::UpdateAIDefenseProduction()
 	for (auto& node : pThis->Base.BaseNodes)
 	{
 		if (node.Placed || node.BuildingTypeIndex < 0
-			|| node.BuildingTypeIndex >= BuildingTypeClass::Array.Count
-			|| node.BuildingTypeIndex == pThis->ProducingBuildingTypeIndex)
+			|| node.BuildingTypeIndex >= BuildingTypeClass::Array.Count)
 		{
 			continue;
 		}
@@ -193,8 +190,8 @@ void HouseExt::ClearAIDefenseFactory()
 }
 
 // AI_Building（0x4FE3E0）中的待建节点挑选调用（lea ecx,[ebp+0x5700]; push -1;
-// call 0x42EB20，共 0xD 字节）。防御产线正在生产的类型不参与原版挑选（防止
-// 同一节点被主产线重复建造），其余行为与原版完全一致。
+// call 0x42EB20，共 0xD 字节）。所有待建的 Combat 节点不参与原版挑选（防御
+// 建筑的需求一律由防御产线承接），其余行为与原版完全一致。
 // 注意必须整体替换这三条指令——若只替换 call 本身，自定义路径返回时原版
 // push 的 -1 参数会残留在栈上，导致函数尾声 ret 读到野地址（实测崩溃）。
 DEFINE_HOOK(0x4FE401, HouseClass_AI_BuildingProduction_PickNode, 0xD)
@@ -204,21 +201,17 @@ DEFINE_HOOK(0x4FE401, HouseClass_AI_BuildingProduction_PickNode, 0xD)
 	GET(HouseClass* const, pThis, EBP);
 
 	auto const pExt = HouseExt::Fetch(pThis);
-	const int defenseIdx = pExt->ProducingDefenseBuildingTypeIndex;
 
-	if (defenseIdx == -1)
-	{
-		// 防御产线空闲，无遮蔽需要
-		R->EAX(DualBuildingTemp::PickPendingNode(&pThis->Base));
-		return AfterPick;
-	}
-
+	// 所有待建的 Combat 节点都不参与原版挑选——防御建筑的需求一律由
+	// 防御产线（本文件的管理器）承接
 	auto& nodes = pThis->Base.BaseNodes;
 	std::vector<BaseNodeClass*> masked;
 
 	for (auto& node : nodes)
 	{
-		if (!node.Placed && node.BuildingTypeIndex == defenseIdx)
+		if (!node.Placed && node.BuildingTypeIndex >= 0
+			&& node.BuildingTypeIndex < BuildingTypeClass::Array.Count
+			&& BuildingTypeClass::Array.GetItem(node.BuildingTypeIndex)->BuildCat == BuildCat::Combat)
 		{
 			node.Placed = true;
 			masked.push_back(&node);
