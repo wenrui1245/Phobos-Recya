@@ -738,8 +738,10 @@ bool TechnoExt::GetAggressiveStance() const
 		return TechnoExt::Fetch(pTransport)->GetAggressiveStance();
 
 	// If this is a child then obey the configuration of the parent
+	// 孤儿附件的 Parent 已随父单位删除被置空，回落到自身的状态
+	// （snapshot-20261031-111249：Fetch(null) 读内联扩展槽 [+0x18] 崩溃）
 	if (const auto pAttachment = this->ParentAttachment)
-		return TechnoExt::Fetch(pAttachment->Parent)->GetAggressiveStance();
+		return pAttachment->Parent ? TechnoExt::Fetch(pAttachment->Parent)->GetAggressiveStance() : this->AggressiveStance;
 
 	return this->AggressiveStance;
 }
@@ -833,8 +835,10 @@ bool TechnoExt::GetCeaseFireStance() const
 		return TechnoExt::Fetch(pTransport)->GetCeaseFireStance();
 
 	// If this is a child then obey the configuration of the parent
+	// 孤儿附件的 Parent 已随父单位删除被置空，回落到自身的状态
+	// （snapshot-20261031-111249：Fetch(null) 读内联扩展槽 [+0x18] 崩溃）
 	if (const auto pAttachment = this->ParentAttachment)
-		return TechnoExt::Fetch(pAttachment->Parent)->GetCeaseFireStance();
+		return pAttachment->Parent ? TechnoExt::Fetch(pAttachment->Parent)->GetCeaseFireStance() : this->CeaseFireStance;
 
 	return this->CeaseFireStance;
 }

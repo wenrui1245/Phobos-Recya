@@ -106,6 +106,12 @@ void AttachmentClass::CreateChild()
 
 void AttachmentClass::AI()
 {
+	// 孤儿附件（父单位已被删除、Parent 被指针失效置空，但本附件仍随父单位的
+	// 遗留扩展存活于 Array 中）不再执行任何逻辑：下方所有路径都会解引用
+	// Parent，而子单位已在 InvalidatePointer 中解挂回收
+	if (!this->Parent)
+		return;
+
 	AttachmentTypeClass* pType = this->GetType();
 
 	if (!this->Child)
@@ -354,6 +360,14 @@ void AttachmentClass::InvalidatePointer(void* ptr)
 {
 	AnnounceInvalidPointer(this->Parent, ptr);
 	AnnounceInvalidPointer(this->Child, ptr);
+
+	// 父单位被删除后本附件成为孤儿（附件随父单位遗留的 ChildAttachments
+	// 继续存活，但 Parent 已置空）。若子单位仍挂在上面，AI()、
+	// TechnoExt::GetCeaseFireStance 等处会解引用空的 Parent（崩溃实锤于
+	// snapshot-20261031-112802 / 111249：AI 中 pParent->InLimbo 与
+	// Fetch(pAttachment->Parent) 两处空指针）。立即解挂并回收子单位。
+	if (!this->Parent && this->Child)
+		this->UnInit();
 }
 
 #pragma region Save/Load
