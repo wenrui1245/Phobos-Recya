@@ -16,6 +16,10 @@ struct PlacingBuildingStruct
 	int Times;
 	CDTimerClass Timer;
 	CellStruct TopLeft;
+	// Mix-ECpack: PlaceBuilding.Extra 类型在挂起等待期间需要保留手动放置时
+	// 编码的水面/朝向标志（bit0 = 水面，bit1+ = 朝向），重发 Place 事件时
+	// 由 CheckHangUpBuilding 读回；上游 28b62dc9 删除 PlaceType 后不再保存。
+	int PlaceFlags = 0;
 };
 
 class HouseExt final : public AbstractExt, public Detach::Listener<BuildingClass>

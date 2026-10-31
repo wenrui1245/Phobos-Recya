@@ -816,6 +816,13 @@ DEFINE_HOOK(0x47EF52, CellClass_DrawPlaceGrid_DrawGrids, 0x6)
 		return 0;
 
 	const auto pCell = ProximityTemp::CurrentCell;
+
+	// RecordCell（0x47EEBC）与本钩子同在 CellClass::Draw 的放置网格分支内，
+	// 正常流程必然先于本钩子执行；此处仅为异常流程兜底（如跨局残留前的
+	// 首次调用），避免空指针解引用。
+	if (!pCell)
+		return 0;
+
 	const auto cell = pCell->MapCoords;
 	const auto pObj = DisplayClass::Instance.CurrentBuildingType;
 	const auto range = static_cast<short>((pObj && pObj->WhatAmI() == AbstractType::BuildingType) ? static_cast<BuildingTypeClass*>(pObj)->Adjacent + 1 : 0);
@@ -856,6 +863,7 @@ static inline void ClearPlacingBuildingData(PlacingBuildingStruct* const pPlace)
 	pPlace->Times = 0;
 	pPlace->Timer.Stop();
 	pPlace->TopLeft = CellStruct::Empty;
+	pPlace->PlaceFlags = 0;
 }
 
 static inline void ClearCurrentBuildingData(DisplayClass* const pDisplay)
@@ -997,6 +1005,7 @@ DEFINE_HOOK(0x4FB1EA, HouseClass_UnitFromFactory_HangUpPlaceEvent, 0x5)
 						place.DrawType = pBuildingType;
 						place.Times = 30;
 						place.TopLeft = topLeftCell;
+						place.PlaceFlags = static_cast<int>(placeType);
 					}
 					else if (place.Times <= 0)
 					{
@@ -1820,7 +1829,13 @@ DEFINE_HOOK(0x4F8DB1, HouseClass_Update_CheckHangUpBuilding, 0x6)
 		}
 		else if (pHouse == HouseClass::CurrentPlayer) // Prevent unexpected wrong event
 		{
-			const int place = pType->Naval ? 1 : 0;
+			// PlaceBuilding.Extra 类型重发事件时必须读回手动放置时编码的
+			// 水面/朝向标志（PlaceTypeTemp 依赖它选择替代变体），否则变体
+			// 选择被重置为方向 0，替代类型可能选错或放置永远失败；
+			// 其余类型按上游方式由 Naval 重算。
+			auto& slot = pType->BuildCat != BuildCat::Combat ? pHouseExt->Common : pHouseExt->Combat;
+			const int place = BuildingTypeExt::Fetch(pType)->PlaceBuilding_Extra
+				? slot.PlaceFlags : (pType->Naval ? 1 : 0);
 			const auto arrayIndex = pType->GetArrayIndex();
 			EventClass::OutList.Add(EventClass(pHouse->ArrayIndex, EventType::Place, AbstractType::Building, arrayIndex, place, cell));
 		}

@@ -427,6 +427,9 @@ bool BuildingTypeExt::CleanUpBuildingSpace(BuildingTypeClass* pBuildingType, Cel
 
 			if (!pDestinationCell)
 			{
+				if (BuildingTypeExt::CleanOptionalCells.empty()) // 候选疏散格已耗尽（前置pass可能全部占用/删除）
+					return true;
+
 				std::sort(BuildingTypeExt::CleanOptionalCells.begin(), BuildingTypeExt::CleanOptionalCells.end(), [location](CellClass* pCellA, CellClass* pCellB)
 				{
 					return pCellA->MapCoords.DistanceFromSquared(location) < pCellB->MapCoords.DistanceFromSquared(location);
