@@ -856,7 +856,6 @@ static inline void ClearPlacingBuildingData(PlacingBuildingStruct* const pPlace)
 	pPlace->Times = 0;
 	pPlace->Timer.Stop();
 	pPlace->TopLeft = CellStruct::Empty;
-	pPlace->PlaceType = 0;
 }
 
 static inline void ClearCurrentBuildingData(DisplayClass* const pDisplay)
@@ -998,7 +997,6 @@ DEFINE_HOOK(0x4FB1EA, HouseClass_UnitFromFactory_HangUpPlaceEvent, 0x5)
 						place.DrawType = pBuildingType;
 						place.Times = 30;
 						place.TopLeft = topLeftCell;
-						place.PlaceType = placeType;
 					}
 					else if (place.Times <= 0)
 					{
@@ -1784,12 +1782,13 @@ DEFINE_HOOK(0x4F8DB1, HouseClass_Update_CheckHangUpBuilding, 0x6)
 		return 0;
 
 	const auto pHouseExt = HouseExt::Fetch(pHouse);
-	auto buildCurrent = [&pHouse, &pHouseExt](BuildingTypeClass* pType, CellStruct cell, size_t placeType)
+	// 上游 28b62dc9：PlaceType 不再随状态保存，直接按 Naval 重算 place 标志。
+	auto buildCurrent = [pHouse, pHouseExt](BuildingTypeClass* pType, CellStruct cell)
 	{
 		if (!pType)
 			return;
 
-		auto currentCanBuild = [&pHouse, &pType]() -> const bool
+		auto currentCanBuild = [pHouse, pType]() -> const bool
 		{
 			auto const bitsOwners = pType->GetOwners();
 
@@ -1821,7 +1820,7 @@ DEFINE_HOOK(0x4F8DB1, HouseClass_Update_CheckHangUpBuilding, 0x6)
 		}
 		else if (pHouse == HouseClass::CurrentPlayer) // Prevent unexpected wrong event
 		{
-			const int place = static_cast<int>(placeType);
+			const int place = pType->Naval ? 1 : 0;
 			const auto arrayIndex = pType->GetArrayIndex();
 			EventClass::OutList.Add(EventClass(pHouse->ArrayIndex, EventType::Place, AbstractType::Building, arrayIndex, place, cell));
 		}
@@ -1832,7 +1831,7 @@ DEFINE_HOOK(0x4F8DB1, HouseClass_Update_CheckHangUpBuilding, 0x6)
 	if (commonPlace.Timer.Completed())
 	{
 		commonPlace.Timer.Stop();
-		buildCurrent(commonPlace.Type, commonPlace.TopLeft, commonPlace.PlaceType);
+		buildCurrent(commonPlace.Type, commonPlace.TopLeft);
 	}
 
 	auto& combatPlace = pHouseExt->Combat;
@@ -1840,7 +1839,7 @@ DEFINE_HOOK(0x4F8DB1, HouseClass_Update_CheckHangUpBuilding, 0x6)
 	if (combatPlace.Timer.Completed())
 	{
 		combatPlace.Timer.Stop();
-		buildCurrent(combatPlace.Type, combatPlace.TopLeft, combatPlace.PlaceType);
+		buildCurrent(combatPlace.Type, combatPlace.TopLeft);
 	}
 
 	if (pHouseExt->OwnedDeployingUnits.size() > 0)
@@ -1931,7 +1930,9 @@ DEFINE_HOOK(0x6D504C, TacticalClass_DrawPlacement_DrawPlacingPreview, 0x6)
 	};
 
 	// 玩家自己的放置预览只画一次（放在阵营循环外，否则每个盟友都会重复画一遍），
-	// 色盘按观察者自己（pPlayer）的配色方案取
+	// 色盘按观察者自己（pPlayer）的配色方案取。注意：上游 28b62dc9 将其改为
+	// PlacementPreview=yes 的类型专属门控块，本分支保留旧的全体预览行为，
+	// 若恢复上游门控块会与本块重复绘制。
 	if (const auto pType = abstract_cast<BuildingTypeClass*>(pDisplay->CurrentBuildingTypeCopy))
 		drawImage(pType, pPlayer, (pDisplay->CurrentFoundationCopy_TopLeftOffset + pDisplay->CurrentFoundationCopy_CenterCell));
 

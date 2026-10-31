@@ -104,6 +104,7 @@ public:
 
 	Valueable<bool> AAOnly;
 	Nullable<bool> Arcing_AllowElevationInaccuracy;
+	Nullable<bool> Arcing_ConsiderBuildingFoundation;
 	Valueable<WeaponTypeClass*> ReturnWeapon;
 	Nullable<bool> ReturnWeapon_ApplyFirepowerMult;
 
@@ -230,7 +231,8 @@ public:
 		, SubjectToWater {}
 		, SubjectToWater_Detonate { true }
 		, AAOnly { false }
-		, Arcing_AllowElevationInaccuracy { true }
+		, Arcing_AllowElevationInaccuracy {}
+		, Arcing_ConsiderBuildingFoundation {}
 		, ReturnWeapon {}
 		, ReturnWeapon_ApplyFirepowerMult { false }
 		, SubjectToSolid { false }
