@@ -1,6 +1,7 @@
 #include <New/Entity/AttachmentClass.h>
 
 #include <Ext/Anim/Body.h>
+#include <Ext/House/Body.h>
 #include <Ext/Scenario/Body.h>
 #include <Ext/TerrainType/Body.h>
 #include <SessionClass.h>
@@ -50,6 +51,13 @@ DEFINE_HOOK(0x55B6B3, LogicClass_AI_After, 0x5)
 {
 	for (auto const& attachment : AttachmentClass::Array)
 		attachment->AI();
+
+	// AI 防御建筑产线（与主建筑产线并行的旁路，见 Hooks.AIDualBuildingProduction）
+	for (auto pHouse : HouseClass::Array)
+	{
+		if (pHouse && !pHouse->IsControlledByHuman())
+			HouseExt::Fetch(pHouse)->UpdateAIDefenseProduction();
+	}
 
 	const int time = RulesExt::Global()->SmudgeUpdateTime;
 

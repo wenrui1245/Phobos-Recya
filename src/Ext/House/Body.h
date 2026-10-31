@@ -76,11 +76,12 @@ public:
 
 	// AI 防御建筑产线（与主建筑产线并行，镜像 ProducingNavalUnitTypeIndex 的做法）：
 	// 主产线沿用原版 ProducingBuildingTypeIndex，防御建筑（BuildCat::Combat）的
-	// 产槽独立；工厂为挂在第一座建造厂上的独立 FactoryClass，完成后的放置经由
-	// Primary_ForDefenses 走与玩家一致的 Place 事件流程。
+	// 产槽独立；工厂为挂在第一座建造厂上的独立 FactoryClass，完成后的放置在
+	// 节点坐标发 Place 事件（Primary_ForDefenses 路由）。瞬态成员不入档。
 	int ProducingDefenseBuildingTypeIndex;
-	FactoryClass* AIDefenseFactory;          // 防御产线工厂（瞬态，不入档）
-	bool AIDualPickCombatOnly;               // AI_Building 本轮节点挑选只取防御建筑（瞬态）
+	FactoryClass* AIDefenseFactory;          // 防御产线工厂（瞬态）
+	CellStruct AIDefenseNodeCoords;          // 任务来源节点的坐标（瞬态）
+	int AIDefenseNextPlaceFrame;             // 下次放置尝试的帧号（瞬态，防刷屏）
 
 	void UpdateAIDefenseProduction();
 	void ClearAIDefenseFactory();
@@ -136,7 +137,8 @@ public:
 		, ProducingNavalUnitTypeIndex { -1 }
 		, ProducingDefenseBuildingTypeIndex { -1 }
 		, AIDefenseFactory { nullptr }
-		, AIDualPickCombatOnly { false }
+		, AIDefenseNodeCoords { }
+		, AIDefenseNextPlaceFrame { 0 }
 		, CombatAlertTimer {}
 		, NumAirpads_NonMFB { 0 }
 		, NumBarracks_NonMFB { 0 }
