@@ -1839,6 +1839,10 @@ void TechnoTypeExt::LoadFromINIFile(CCINIClass* const pINI)
 	// Ares 0.2
 	this->CameoPCX.Read(&CCINIClass::INI_Art, pArtSection, "CameoPCX");
 
+	// UniqueTechno / SelectedInfo 各自的独立图标，未配置时绘制处回退 CameoPCX
+	this->CameoPCX_UniqueTechno.Read(&CCINIClass::INI_Art, pArtSection, "CameoPCX.UniqueTechno");
+	this->CameoPCX_SelectedInfo.Read(&CCINIClass::INI_Art, pArtSection, "CameoPCX.SelectedInfo");
+
 	this->DropCrate.Read(exINI, pSection, "DropCrate");
 
 	// VoiceIFVRepair from Ares 0.2
@@ -2131,6 +2135,8 @@ void TechnoTypeExt::Serialize(T& Stm)
 		.Process(this->CameoPal)
 		.Process(this->CameoPCX)
 		.Process(this->GreyCameoPCX)
+		.Process(this->CameoPCX_UniqueTechno)
+		.Process(this->CameoPCX_SelectedInfo)
 
 		.Process(this->SelectedInfo_UpperType)
 		.Process(this->SelectedInfo_UpperIndex)

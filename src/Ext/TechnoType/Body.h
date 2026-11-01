@@ -387,6 +387,9 @@ public:
 	CustomPalette CameoPal;
 	PhobosPCXFile CameoPCX;
 	PhobosPCXFile GreyCameoPCX;
+	// UniqueTechno / SelectedInfo 侧边栏各自的独立图标（Art），未配置时回退 CameoPCX
+	PhobosPCXFile CameoPCX_UniqueTechno;
+	PhobosPCXFile CameoPCX_SelectedInfo;
 
 	Valueable<DisplayInfoType> SelectedInfo_UpperType;
 	Valueable<int> SelectedInfo_UpperIndex;
@@ -977,6 +980,8 @@ public:
 		, CameoPal {}
 		, CameoPCX {}
 		, GreyCameoPCX {}
+		, CameoPCX_UniqueTechno {}
+		, CameoPCX_SelectedInfo {}
 
 		, SelectedInfo_UpperType { DisplayInfoType::Shield }
 		, SelectedInfo_UpperIndex { 0 }

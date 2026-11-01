@@ -229,7 +229,17 @@ void SelectedColumnClass::DrawInfo() const
 	if (!pMainCameo)
 		return;
 
-	if (const auto pCameoPCX = pDisplayTypeExt ? pDisplayTypeExt->CameoPCX.GetSurface() : nullptr)
+	// 独立图标：优先 CameoPCX.SelectedInfo，未配置时回退通用 CameoPCX
+	BSurface* pCameoPCX = nullptr;
+
+	if (pDisplayTypeExt)
+	{
+		const auto& cameoPCX = pDisplayTypeExt->CameoPCX_SelectedInfo.Exists()
+			? pDisplayTypeExt->CameoPCX_SelectedInfo : pDisplayTypeExt->CameoPCX;
+		pCameoPCX = cameoPCX.GetSurface();
+	}
+
+	if (pCameoPCX)
 	{
 		auto drawRect = RectangleStruct { pMainCameo->X, pMainCameo->Y, pMainCameo->Width, pMainCameo->Height};
 		PCX::Instance.BlitToSurface(&drawRect, DSurface::Composite, pCameoPCX);

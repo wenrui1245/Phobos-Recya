@@ -36,7 +36,11 @@ bool UniqueTechnoButtonClass::Draw(bool forced)
 	Point2D position { this->X, this->Y };
 	RectangleStruct drawRect { this->X, this->Y, 60, 48 };
 
-	if (const auto CameoPCX = pTypeExt->CameoPCX.GetSurface())
+	// 独立图标：优先 CameoPCX.UniqueTechno，未配置时回退通用 CameoPCX
+	const auto& cameoPCX = pTypeExt->CameoPCX_UniqueTechno.Exists()
+		? pTypeExt->CameoPCX_UniqueTechno : pTypeExt->CameoPCX;
+
+	if (const auto CameoPCX = cameoPCX.GetSurface())
 	{
 		PCX::Instance.BlitToSurface(&drawRect, DSurface::Composite, CameoPCX);
 	}

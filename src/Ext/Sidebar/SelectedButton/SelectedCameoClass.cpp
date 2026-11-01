@@ -139,7 +139,11 @@ void SelectedCameoClass::DrawInfo() const
 
 	auto drawCameo = [this](TechnoTypeExt* pTypeExt)
 	{
-		if (const auto CameoPCX = pTypeExt->CameoPCX.GetSurface())
+		// 独立图标：优先 CameoPCX.SelectedInfo，未配置时回退通用 CameoPCX
+		const auto& cameoPCX = pTypeExt->CameoPCX_SelectedInfo.Exists()
+			? pTypeExt->CameoPCX_SelectedInfo : pTypeExt->CameoPCX;
+
+		if (const auto CameoPCX = cameoPCX.GetSurface())
 		{
 			RectangleStruct drawRect { this->X, this->Y, 60, 48 };
 			PCX::Instance.BlitToSurface(&drawRect, DSurface::Composite, CameoPCX);
