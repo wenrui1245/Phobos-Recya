@@ -880,10 +880,14 @@ CanBuildResult TechnoTypeExt::CheckAlwaysExistCameo(TechnoTypeClass* pType, CanB
 		if (tabIndex != sidebar.ActiveTabIndex)
 			return;
 
+		// 只置重绘标志，不立即重建侧边栏：本函数由 HouseClass::CanBuild 调用，
+		// Ares 的 StripClass::RecheckCameos 遍历侧边栏条目时会触发它，此处的
+		// 同步重建（RedrawSidebar）会销毁正在遍历的条目，遍历继续时对已释放
+		// 条目调用 RemoveCameo 造成 Use-After-Free（实测崩溃）。置位的标志会让
+		// 侧边栏在自身的绘制阶段安全地完成重建。
 		sidebar.SidebarNeedsRedraw = true;
 		sidebar.SidebarBackgroundNeedsRedraw = true; // Necessary
 		sidebar.Tabs[tabIndex].NeedsRedraw = true;
-		sidebar.RedrawSidebar(0);
 	};
 
 	if (canBuild == CanBuildResult::Unbuildable)
