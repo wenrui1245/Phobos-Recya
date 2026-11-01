@@ -16,6 +16,46 @@ namespace DualBuildingTemp
 	{
 		return reinterpret_cast<BaseNodeClass*(__thiscall*)(BaseClass*, int)>(0x42EB20)(pBase, -1);
 	}
+
+	// 挂接式升级/插件类型（PowersUp 系列，需要宿主建筑）不归防御产线：它们
+	// 依赖宿主存在才能放置，由原版主产线的升级放置流程处理
+	inline bool IsHostedUpgradeType(BuildingTypeClass* pType)
+	{
+		return !BuildingTypeExt::Fetch(pType)->PowersUp_Buildings.empty();
+	}
+
+	// 供 AI_Building 的两处节点挑选调用（0x4FE401 / 0x4FE493）使用：临时遮蔽
+	// 所有应由防御产线承接的待建节点，让原版挑选取到第一个非防御节点，随后
+	// 精确还原（不得触碰本就 Placed 的节点）
+	inline BaseNodeClass* PickExcludingDefense(HouseClass* pHouse)
+	{
+		auto& nodes = pHouse->Base.BaseNodes;
+		std::vector<BaseNodeClass*> masked;
+
+		for (auto& node : nodes)
+		{
+			if (node.Placed || node.BuildingTypeIndex < 0
+				|| node.BuildingTypeIndex >= BuildingTypeClass::Array.Count)
+			{
+				continue;
+			}
+
+			auto const pType = BuildingTypeClass::Array.GetItem(node.BuildingTypeIndex);
+
+			if (pType->BuildCat == BuildCat::Combat && !IsHostedUpgradeType(pType))
+			{
+				node.Placed = true;
+				masked.push_back(&node);
+			}
+		}
+
+		auto const pNode = PickPendingNode(&pHouse->Base);
+
+		for (auto node : masked)
+			node->Placed = false;
+
+		return pNode;
+	}
 }
 
 // AI 双建筑产线（主建筑 + 防御建筑并行）
@@ -29,14 +69,16 @@ namespace DualBuildingTemp
 // 作为一条独立的旁路存在：
 //
 //   1. 所有待建的 Combat 节点一律由管理器承接为防御产线任务（可负担性等
-//      检查与原版一致），原版挑选永远选不到防御建筑；
+//      检查与原版一致）；原版 AI_Building 内的两处节点挑选（首轮挑选与
+//      "已入队则移除重挑"的再挑选）都会遮蔽这些节点，主产线永远选不到防御
+//      建筑。挂接式升级/插件类型（PowersUp 系列）除外——它们仍由原版主产线
+//      以宿主感知的方式放置；
 //   2. 在第一座建造厂上以独立 FactoryClass 生产（与原版 AI 工厂的创建方式
 //      一致：FactoryClass + DemandProduction）；
 //   3. 生产完成后在该节点自己的坐标发 Place 事件放置（沿用基地规划的位置），
-//      成功后把节点标记为已放置；建造厂被打包/出售时与原版同样视为产线丢失，
-//      放弃生产；
-//   4. 防御产线生产期间，原版挑选节点时跳过该类型（见 0x4FE401 钩子），
-//      防止同一节点被主产线重复建造。
+//      成功后把节点标记为已放置；反复放置失败（如目标位置被永久堵死）达
+//      上限后放弃该节点，防止产线被卡死；建造厂被打包/出售时与原版同样视为
+//      产线丢失，放弃生产。
 
 // 防御产线工厂生命周期：获取任务（扫描基地节点）、创建（挂在第一座建造厂上）、
 // 完成放置、清理。
@@ -102,19 +144,19 @@ void HouseExt::UpdateAIDefenseProduction()
 			// 放置成功后对象会离开工厂
 			if (!this->AIDefenseFactory->Object)
 			{
-				// 本节点已完成使命，标记为已放置，防止之后被重复建造
-				for (auto& node : pThis->Base.BaseNodes)
-				{
-					if (!node.Placed && node.BuildingTypeIndex == defIdx
-						&& node.MapCoords == this->AIDefenseNodeCoords)
-					{
-						node.Placed = true;
-						break;
-					}
-				}
-
+				this->MarkAIDefenseNodePlaced();
 				this->ClearAIDefenseFactory();
 				this->ProducingDefenseBuildingTypeIndex = -1;
+				this->AIDefensePlaceAttempts = 0;
+			}
+			else if (++this->AIDefensePlaceAttempts >= 8)
+			{
+				// 反复放置失败（位置被永久堵死、缺宿主等）：放弃本节点，防止
+				// 产线被一个永远无法放置的任务卡死
+				this->MarkAIDefenseNodePlaced();
+				this->ClearAIDefenseFactory();
+				this->ProducingDefenseBuildingTypeIndex = -1;
+				this->AIDefensePlaceAttempts = 0;
 			}
 		}
 
@@ -122,8 +164,8 @@ void HouseExt::UpdateAIDefenseProduction()
 	}
 
 	// —— 获取新任务 ——
-	// 所有防御建筑需求一律由本产线承接（原版挑选已通过 0x4FE401 钩子排除
-	// Combat 节点），不依赖主产线是否空闲
+	// 所有防御建筑需求一律由本产线承接（原版挑选已通过 0x4FE401/0x4FE493 钩子
+	// 排除 Combat 节点），不依赖主产线是否空闲；挂接式升级/插件类型不承接
 	if (pThis->ConYards.Count <= 0)
 		return;
 
@@ -142,7 +184,7 @@ void HouseExt::UpdateAIDefenseProduction()
 
 		auto const pType = BuildingTypeClass::Array.GetItem(node.BuildingTypeIndex);
 
-		if (pType->BuildCat != BuildCat::Combat)
+		if (pType->BuildCat != BuildCat::Combat || DualBuildingTemp::IsHostedUpgradeType(pType))
 			continue;
 
 		if (pThis->CanBuild(pType, false, false) == CanBuildResult::Unbuildable)
@@ -157,6 +199,7 @@ void HouseExt::UpdateAIDefenseProduction()
 		// 记录任务并启动生产
 		this->ProducingDefenseBuildingTypeIndex = node.BuildingTypeIndex;
 		this->AIDefenseNodeCoords = node.MapCoords;
+		this->AIDefensePlaceAttempts = 0;
 
 		auto const pFactory = GameCreate<FactoryClass>();
 
@@ -189,9 +232,28 @@ void HouseExt::ClearAIDefenseFactory()
 	this->AIDefenseFactory = nullptr;
 }
 
+void HouseExt::MarkAIDefenseNodePlaced()
+{
+	auto const pThis = this->OwnerObject();
+	const int defIdx = this->ProducingDefenseBuildingTypeIndex;
+
+	if (defIdx == -1)
+		return;
+
+	for (auto& node : pThis->Base.BaseNodes)
+	{
+		if (!node.Placed && node.BuildingTypeIndex == defIdx
+			&& node.MapCoords == this->AIDefenseNodeCoords)
+		{
+			node.Placed = true;
+			break;
+		}
+	}
+}
+
 // AI_Building（0x4FE3E0）中的待建节点挑选调用（lea ecx,[ebp+0x5700]; push -1;
-// call 0x42EB20，共 0xD 字节）。所有待建的 Combat 节点不参与原版挑选（防御
-// 建筑的需求一律由防御产线承接），其余行为与原版完全一致。
+// call 0x42EB20，共 0xD 字节）。应由防御产线承接的节点不参与原版挑选，其余
+// 行为与原版完全一致。
 // 注意必须整体替换这三条指令——若只替换 call 本身，自定义路径返回时原版
 // push 的 -1 参数会残留在栈上，导致函数尾声 ret 读到野地址（实测崩溃）。
 DEFINE_HOOK(0x4FE401, HouseClass_AI_BuildingProduction_PickNode, 0xD)
@@ -200,30 +262,19 @@ DEFINE_HOOK(0x4FE401, HouseClass_AI_BuildingProduction_PickNode, 0xD)
 
 	GET(HouseClass* const, pThis, EBP);
 
-	auto const pExt = HouseExt::Fetch(pThis);
-
-	// 所有待建的 Combat 节点都不参与原版挑选——防御建筑的需求一律由
-	// 防御产线（本文件的管理器）承接
-	auto& nodes = pThis->Base.BaseNodes;
-	std::vector<BaseNodeClass*> masked;
-
-	for (auto& node : nodes)
-	{
-		if (!node.Placed && node.BuildingTypeIndex >= 0
-			&& node.BuildingTypeIndex < BuildingTypeClass::Array.Count
-			&& BuildingTypeClass::Array.GetItem(node.BuildingTypeIndex)->BuildCat == BuildCat::Combat)
-		{
-			node.Placed = true;
-			masked.push_back(&node);
-		}
-	}
-
-	auto const pNode = DualBuildingTemp::PickPendingNode(&pThis->Base);
-
-	// 精确还原被遮蔽的节点（不得触碰本就 Placed 的节点）
-	for (auto node : masked)
-		node->Placed = false;
-
-	R->EAX(pNode);
+	R->EAX(DualBuildingTemp::PickExcludingDefense(pThis));
 	return AfterPick;
+}
+
+// AI_Building 中"挑选的节点已在生产队列中则移除并重新挑选"的再挑选调用
+// （push -1; lea ecx,[ebp+0x5700]; call 0x42EB20，共 0xD 字节）。此处同样
+// 需要遮蔽——此前漏挂导致防御节点经重挑漏回主产线（实测主产线仍在造防御）。
+DEFINE_HOOK(0x4FE493, HouseClass_AI_BuildingProduction_RepickNode, 0xD)
+{
+	enum { AfterRepick = 0x4FE4A0 };
+
+	GET(HouseClass* const, pThis, EBP);
+
+	R->EAX(DualBuildingTemp::PickExcludingDefense(pThis));
+	return AfterRepick;
 }

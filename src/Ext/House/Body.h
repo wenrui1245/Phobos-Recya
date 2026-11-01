@@ -82,9 +82,11 @@ public:
 	FactoryClass* AIDefenseFactory;          // 防御产线工厂（瞬态）
 	CellStruct AIDefenseNodeCoords;          // 任务来源节点的坐标（瞬态）
 	int AIDefenseNextPlaceFrame;             // 下次放置尝试的帧号（瞬态，防刷屏）
+	int AIDefensePlaceAttempts;              // 当前任务的放置尝试次数（瞬态）
 
 	void UpdateAIDefenseProduction();
 	void ClearAIDefenseFactory();
+	void MarkAIDefenseNodePlaced();
 
 	// Factories that exist but don't count towards multiple factory bonus.
 	int NumAirpads_NonMFB;
@@ -139,6 +141,7 @@ public:
 		, AIDefenseFactory { nullptr }
 		, AIDefenseNodeCoords { }
 		, AIDefenseNextPlaceFrame { 0 }
+		, AIDefensePlaceAttempts { 0 }
 		, CombatAlertTimer {}
 		, NumAirpads_NonMFB { 0 }
 		, NumBarracks_NonMFB { 0 }
