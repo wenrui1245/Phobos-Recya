@@ -565,6 +565,15 @@ bool TechnoExt::ConvertToType(TechnoClass* pThis, TechnoTypeClass* pToType)
 		tempUsing->LetGo();
 
 	const auto pOwner = pThis->Owner;
+
+	// 与 Foot 路径一致：RegisterLoss/RegisterGain 是引擎 Owned/Active 类型计数表
+	// （前提、AuxBuildings、AI 触发器等判定的数据源）的唯一维护入口，且仅由
+	// SetOwningHouse 触发——建筑变形不改变所有者，SetOwningHouse 会因新旧所有者
+	// 相同提前返回。不手动迁移的话，旧类型的计数残留、新类型永远不入表，
+	// 超武 AuxBuildings 等按类型计数的功能全部失灵。
+	if (!pThis->InLimbo)
+		pOwner->RegisterLoss(pThis, false);
+
 	pOwner->RemoveTracking(pThis);
 
 	// Maybe buggy
@@ -604,6 +613,10 @@ bool TechnoExt::ConvertToType(TechnoClass* pThis, TechnoTypeClass* pToType)
 
 	pBuilding->Place(false);
 	pOwner->AddTracking(pThis);
+
+	if (!pThis->InLimbo)
+		pOwner->RegisterGain(pThis, false);
+
 	return true;
 }
 
