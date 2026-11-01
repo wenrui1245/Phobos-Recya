@@ -13,6 +13,9 @@
 
 namespace DualBuildingTemp
 {
+	// 放置尝试次数上限：超过即放弃该节点
+	constexpr int MaxPlaceAttempts = 8;
+
 	// 0x42E780：BaseClass 节点判定——"节点位置上已有建筑"（真 → 原版挑选会跳过）
 	inline bool IsNodeAlreadyBuilt(BaseClass* pBase, int index)
 	{
