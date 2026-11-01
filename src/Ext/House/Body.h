@@ -10,6 +10,7 @@ class FactoryClass;
 #include <Utilities/TemplateDef.h>
 
 #include <array>
+#include <vector>
 
 struct PlacingBuildingStruct
 {
@@ -83,6 +84,7 @@ public:
 	CellStruct AIDefenseNodeCoords;          // 任务来源节点的坐标（瞬态）
 	int AIDefenseNextPlaceFrame;             // 下次放置尝试的帧号（瞬态，防刷屏）
 	int AIDefensePlaceAttempts;              // 当前任务的放置尝试次数（瞬态）
+	std::vector<CellStruct> AIDefenseAbandonedNodes; // 反复放置失败后放弃的节点坐标（瞬态）
 
 	void UpdateAIDefenseProduction();
 	void ClearAIDefenseFactory();
