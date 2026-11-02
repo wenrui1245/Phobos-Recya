@@ -100,6 +100,14 @@ DEFINE_HOOK(0x4CA0A1, FactoryClass_Abandon_NavalProductionFix, 0x5)
 
 	auto const pObject = pThis->Object;
 
+	if (auto const pHouseExt = HouseExt::TryFetch(pThis->Owner))
+	{
+		// The native building branch at 0x4CA0DA clears the MAIN building slot.
+		// Keep refunds and product destruction, skipping only the unrelated slots.
+		if (pHouseExt->AIDefenseFactory == pThis)
+			return 0x4CA0E3;
+	}
+
 	if (pObject->WhatAmI() == AbstractType::Unit && static_cast<UnitClass*>(pObject)->Type->Naval)
 	{
 		if (auto const pHouseExt = HouseExt::TryFetch(pThis->Owner))

@@ -18,6 +18,7 @@ public:
 
 	int GetMaximumButtonCount();
 
+	static bool Before(int left, int right);
 	static bool IsEnabled();
 	static void RecheckCameo();
 

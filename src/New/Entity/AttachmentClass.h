@@ -1,6 +1,7 @@
-﻿#pragma once
+#pragma once
 
 #include <algorithm>
+#include "AttachmentRuntime.h"
 
 #include <GeneralStructures.h>
 
@@ -38,6 +39,7 @@ public:
 		DesiredDir { DirStruct(pType->RotationAdjust) },
 		TransDirTimer {}
 	{
+		if (auto* registry = AttachmentRuntime::Lifetimes<AttachmentClass>()) registry->Add(this);
 		AttachmentClass::Array.emplace_back(this);
 	}
 
@@ -53,6 +55,7 @@ public:
 		DesiredDir {},
 		TransDirTimer {}
 	{
+		if (auto* registry = AttachmentRuntime::Lifetimes<AttachmentClass>()) registry->Add(this);
 		AttachmentClass::Array.emplace_back(this);
 	}
 
@@ -72,6 +75,7 @@ public:
 	void Initialize();
 	void CreateChild();
 	void AI();
+	static void UpdateAll();
 	void Destroy(TechnoClass* pSource);
 	void UnInit();
 	void ChildDestroyed();
@@ -83,6 +87,7 @@ public:
 	bool DetachChild();
 
 	void InvalidatePointer(void* ptr);
+	static void PointerGotInvalid(void* ptr, bool removed);
 
 	bool Load(PhobosStreamReader& stm, bool registerForChange);
 	bool Save(PhobosStreamWriter& stm) const;

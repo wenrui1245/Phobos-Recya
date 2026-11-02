@@ -1,4 +1,5 @@
 ﻿#include "SWSidebarClass.h"
+#include "StrictOrder.h"
 
 #include <Ext/House/Body.h>
 
@@ -181,6 +182,17 @@ bool SWSidebarClass::AddButton(int superIdx)
 	return columns.back()->AddButton(superIdx);
 }
 
+bool SWSidebarClass::Before(int left, int right)
+{
+ const unsigned int ownerBits = 1u << HouseClass::CurrentPlayer->Type->ArrayIndex;
+ const auto a = SWTypeExt::TryFetch(SuperWeaponTypeClass::Array.GetItemOrDefault(left));
+ const auto b = SWTypeExt::TryFetch(SuperWeaponTypeClass::Array.GetItemOrDefault(right));
+ return SWSidebarOrder::Before(left, right,
+  a && (a->SuperWeaponSidebar_PriorityHouses & ownerBits),
+  b && (b->SuperWeaponSidebar_PriorityHouses & ownerBits),
+  [](int x, int y) { return BuildType::SortsBefore(AbstractType::Special, x, AbstractType::Special, y); });
+}
+
 void SWSidebarClass::SortButtons()
 {
 	auto& columns = this->Columns;
@@ -204,21 +216,8 @@ void SWSidebarClass::SortButtons()
 		column->ClearButtons(false);
 	}
 
-	const unsigned int ownerBits = 1u << HouseClass::CurrentPlayer->Type->ArrayIndex;
-
-	std::stable_sort(vec_Buttons.begin(), vec_Buttons.end(), [ownerBits](SWButtonClass* const a, SWButtonClass* const b)
-		{
-			const auto pExtA = SWTypeExt::TryFetch(SuperWeaponTypeClass::Array.GetItemOrDefault(a->SuperIndex));
-			const auto pExtB = SWTypeExt::TryFetch(SuperWeaponTypeClass::Array.GetItemOrDefault(b->SuperIndex));
-
-			if (pExtB && (pExtB->SuperWeaponSidebar_PriorityHouses & ownerBits) && (!pExtA || !(pExtA->SuperWeaponSidebar_PriorityHouses & ownerBits)))
-				return false;
-
-			if ((!pExtB || !(pExtB->SuperWeaponSidebar_PriorityHouses & ownerBits)) && pExtA && (pExtA->SuperWeaponSidebar_PriorityHouses & ownerBits))
-				return true;
-
-			return BuildType::SortsBefore(AbstractType::Special, a->SuperIndex, AbstractType::Special, b->SuperIndex);
-		});
+	std::stable_sort(vec_Buttons.begin(), vec_Buttons.end(), [](const auto a, const auto b)
+		{ return Before(a->SuperIndex, b->SuperIndex); });
 
 	const auto pTopPCX = SideExt::Fetch(SideClass::Array.Items[ScenarioClass::Instance->PlayerSideIndex])->SuperWeaponSidebar_TopPCX.GetSurface();
 	const int buttonCount = static_cast<int>(vec_Buttons.size());

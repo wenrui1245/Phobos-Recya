@@ -1,4 +1,4 @@
-﻿#include "AttachmentClass.h"
+#include "AttachmentClass.h"
 
 #include <Dir.h>
 #include <BulletClass.h>
@@ -63,6 +63,7 @@ CoordStruct AttachmentClass::GetChildLocation() const
 
 AttachmentClass::~AttachmentClass()
 {
+	if (auto* registry = AttachmentRuntime::Lifetimes<AttachmentClass>()) registry->Remove(this);
 	// clean up non-owning references
 	if (this->Child)
 	{
@@ -87,6 +88,8 @@ void AttachmentClass::Initialize()
 
 void AttachmentClass::CreateChild()
 {
+	if (!this->Parent)
+		return;
 	if (auto const pChildType = this->GetChildType())
 	{
 		if (pChildType->WhatAmI() != AbstractType::UnitType)
@@ -104,13 +107,22 @@ void AttachmentClass::CreateChild()
 	}
 }
 
+void AttachmentClass::UpdateAll()
+{
+ if (auto* registry = AttachmentRuntime::Lifetimes<AttachmentClass>())
+  registry->Run(Array, [](AttachmentClass* attachment) { attachment->AI(); });
+}
+
 void AttachmentClass::AI()
 {
-	// 孤儿附件（父单位已被删除、Parent 被指针失效置空，但本附件仍随父单位的
-	// 遗留扩展存活于 Array 中）不再执行任何逻辑：下方所有路径都会解引用
-	// Parent，而子单位已在 InvalidatePointer 中解挂回收
-	if (!this->Parent)
-		return;
+ // Removed parents may stay in their sinking/death phase before their extension
+ // is destroyed. Settle the configured child outcome once; never respawn here.
+ if (!this->Parent)
+ {
+  this->RespawnTimer.Stop();
+  this->Destroy(nullptr);
+  return;
+ }
 
 	AttachmentTypeClass* pType = this->GetType();
 
@@ -223,23 +235,26 @@ void AttachmentClass::AI()
 // Called in Kill_Cargo, handles logics for parent destruction on children
 void AttachmentClass::Destroy(TechnoClass* pSource)
 {
-	if (this->Child)
-	{
-		auto const pChildExt = TechnoExt::Fetch(this->Child);
-		pChildExt->ParentAttachment = nullptr;
-
-		auto pType = this->GetType();
-
-		if (const auto pWeapon = pType->DestructionWeapon_Child.Get())
-			TechnoExt::FireWeaponAtSelf(this->Child, pWeapon);
-
-		if (pType->InheritDestruction && this->Child)
-			TechnoExt::Kill(this->Child, pSource);
-		else if (!this->Child->InLimbo && pType->ParentDestructionMission != Mission::None)
-			this->Child->QueueMission(pType->ParentDestructionMission, false);
-
-		this->Child = nullptr;
-	}
+ if (!this->Child)
+  return;
+ auto* child = this->Child;
+ auto* type = this->GetType();
+ const auto weapon = type->DestructionWeapon_Child.Get();
+ const bool inherit = type->InheritDestruction;
+ const auto mission = type->ParentDestructionMission.Get();
+ auto* ext = TechnoExt::Fetch(child);
+ if (ext->ParentAttachment == this)
+  ext->ParentAttachment = nullptr;
+ this->Child = nullptr;
+ // Everything needed is on the stack before callbacks. Either object, including
+ // the attachment owner, may disappear while a destruction weapon executes.
+ AttachmentRuntime::Watch<TechnoClass> target(child), source(pSource);
+ if (weapon)
+  TechnoExt::FireWeaponAtSelf(target.Get(), weapon);
+ if (inherit && target.Get())
+  TechnoExt::Kill(target.Get(), source.Get());
+ else if (target.Get() && !target.Get()->InLimbo && mission != Mission::None)
+  target.Get()->QueueMission(mission, false);
 }
 
 void AttachmentClass::UnInit()
@@ -266,16 +281,16 @@ void AttachmentClass::ChildDestroyed()
 
 		AttachmentTypeClass* pType = this->GetType();
 
-		if (const auto pWeapon = pType->DestructionWeapon_Parent.Get())
-			TechnoExt::FireWeaponAtSelf(this->Parent, pWeapon);
-
 		this->Child = nullptr;
+
+		if (const auto pWeapon = this->Parent ? pType->DestructionWeapon_Parent.Get() : nullptr)
+			TechnoExt::FireWeaponAtSelf(this->Parent, pWeapon);
 	}
 }
 
 void AttachmentClass::Unlimbo()
 {
-	if (this->Child)
+	if (this->Child && this->Parent)
 	{
 		++Unsorted::ScenarioInit;
 		this->Child->Unlimbo(this->GetChildLocation(), this->GetChildDirection().GetDir());
@@ -356,18 +371,30 @@ bool AttachmentClass::DetachChild()
 }
 
 
+void AttachmentClass::PointerGotInvalid(void* ptr, bool removed)
+{
+	if (!removed)
+		return;
+
+	AttachmentRuntime::Watch<TechnoClass>::Invalidate(ptr);
+	for (const auto pAttachment : AttachmentClass::Array)
+		pAttachment->InvalidatePointer(ptr);
+}
+
 void AttachmentClass::InvalidatePointer(void* ptr)
 {
-	AnnounceInvalidPointer(this->Parent, ptr);
+	if (this->Parent == ptr)
+ {
+  this->RespawnTimer.Stop();
+  if (this->Child)
+  {
+   auto* ext = TechnoExt::TryFetch(this->Child);
+   if (ext && ext->ParentAttachment == this)
+    ext->ParentAttachment = nullptr;
+  }
+ }
+ AnnounceInvalidPointer(this->Parent, ptr);
 	AnnounceInvalidPointer(this->Child, ptr);
-
-	// 父单位被删除后本附件成为孤儿（附件随父单位遗留的 ChildAttachments
-	// 继续存活，但 Parent 已置空）。若子单位仍挂在上面，AI()、
-	// TechnoExt::GetCeaseFireStance 等处会解引用空的 Parent（崩溃实锤于
-	// snapshot-20261031-112802 / 111249：AI 中 pParent->InLimbo 与
-	// Fetch(pAttachment->Parent) 两处空指针）。立即解挂并回收子单位。
-	if (!this->Parent && this->Child)
-		this->UnInit();
 }
 
 #pragma region Save/Load

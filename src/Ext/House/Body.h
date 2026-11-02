@@ -25,7 +25,7 @@ struct PlacingBuildingStruct
 	int PlaceFlags = 0;
 };
 
-class HouseExt final : public AbstractExt, public Detach::Listener<BuildingClass>
+class HouseExt final : public AbstractExt, public Detach::Listener<BuildingClass>, public Detach::Listener<FactoryClass>
 {
 public:
 	using base_type = HouseClass;
@@ -75,18 +75,18 @@ public:
 	int LastBuiltNavalVehicleType;
 	int ProducingNavalUnitTypeIndex;
 
-	// AI 防御建筑产线（与主建筑产线并行，镜像 ProducingNavalUnitTypeIndex 的做法）：
-	// 主产线沿用原版 ProducingBuildingTypeIndex，防御建筑（BuildCat::Combat）的
-	// 产槽独立；工厂为挂在第一座建造厂上的独立 FactoryClass，完成后的放置在
-	// 节点坐标发 Place 事件（Primary_ForDefenses 路由）。瞬态成员不入档。
+	// AI defense production owns a separate factory, routed via Primary_ForDefenses.
+	// Persist the entire job, including the swizzled factory pointer: recreating it
+	// on load would lose paid progress and could place the product at cell (0, 0).
 	int ProducingDefenseBuildingTypeIndex;
-	FactoryClass* AIDefenseFactory;          // 防御产线工厂（瞬态）
-	CellStruct AIDefenseNodeCoords;          // 任务来源节点的坐标（瞬态）
-	int AIDefenseNextPlaceFrame;             // 下次放置尝试的帧号（瞬态，防刷屏）
-	int AIDefensePlaceAttempts;              // 当前任务的放置尝试次数（瞬态）
-	std::vector<CellStruct> AIDefenseAbandonedNodes; // 反复放置失败后放弃的节点坐标（瞬态）
+	FactoryClass* AIDefenseFactory;
+	CellStruct AIDefenseNodeCoords;
+	int AIDefenseNextPlaceFrame;
+	int AIDefensePlaceAttempts;
+	std::vector<CellStruct> AIDefenseAbandonedNodes;
 
 	void UpdateAIDefenseProduction();
+	bool TryStartAIDefenseProduction(const BaseNodeClass& node);
 	void ClearAIDefenseFactory();
 	void MarkAIDefenseNodePlaced();
 
@@ -187,6 +187,7 @@ public:
 	virtual void LoadFromINIFile(CCINIClass* pINI) override;
 	//virtual void Initialize() override;
 	virtual void OnDetach(BuildingClass* pTarget, bool removed) override;
+	virtual void OnDetach(FactoryClass* pTarget, bool removed) override;
 
 	virtual void LoadFromStream(PhobosStreamReader& Stm) override;
 	virtual void SaveToStream(PhobosStreamWriter& Stm) override;

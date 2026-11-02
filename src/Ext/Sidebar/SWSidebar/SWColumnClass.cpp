@@ -83,25 +83,10 @@ bool SWColumnClass::AddButton(int superIdx)
 
 	if (buttonCount >= this->MaxButtons && !SWSidebarClass::Instance.AddColumn())
 	{
-		const unsigned int ownerBits = 1u << HouseClass::CurrentPlayer->Type->ArrayIndex;
-
-		auto Compare = [ownerBits](const int left, const int right)
-		{
-			const auto pExtA = SWTypeExt::TryFetch(SuperWeaponTypeClass::Array.GetItemOrDefault(left));
-			const auto pExtB = SWTypeExt::TryFetch(SuperWeaponTypeClass::Array.GetItemOrDefault(right));
-
-			if (pExtB && (pExtB->SuperWeaponSidebar_PriorityHouses & ownerBits) && (!pExtA || !(pExtA->SuperWeaponSidebar_PriorityHouses & ownerBits)))
-				return false;
-
-			if ((!pExtB || !(pExtB->SuperWeaponSidebar_PriorityHouses & ownerBits)) && pExtA && (pExtA->SuperWeaponSidebar_PriorityHouses & ownerBits))
-				return true;
-
-			return BuildType::SortsBefore(AbstractType::Special, left, AbstractType::Special, right);
-		};
 
 		const int backIdx = buttons.back()->SuperIndex;
 
-		if (!Compare(superIdx, backIdx))
+		if (!SWSidebarClass::Before(superIdx, backIdx))
 			return false;
 
 		this->RemoveButton(backIdx);

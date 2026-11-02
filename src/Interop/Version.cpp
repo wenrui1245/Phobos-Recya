@@ -1,4 +1,6 @@
 #include "Version.h"
+#include <Ext/SWType/Body.h>
+#include <Ext/House/Body.h>
 #include "Utilities/Debug.h"
 
 DEFINE_EXPORT(HRESULT, GetInteropAPIVersion, InteropAPIVersion* pVersion)
@@ -25,3 +27,18 @@ DEFINE_EXPORT(int, SomeOldAPI_Deprecated, int param1)
 	return 0;  // unreachable
 }
 */
+
+DEFINE_EXPORT(HRESULT, Phobos_QuerySuperWeaponAvailability,
+ HouseClass* house, SuperWeaponTypeClass* type, BOOL* available)
+{
+ if(!available)return E_POINTER;
+ *available=FALSE;
+ // Validate identities against live host registries before touching extensions.
+ if(!house || !type)return E_INVALIDARG;
+ if(HouseClass::Array.GetItemOrDefault(house->ArrayIndex)!=house
+  || SuperWeaponTypeClass::Array.GetItemOrDefault(type->ArrayIndex)!=type)return E_INVALIDARG;
+ const auto ext=SWTypeExt::TryFetch(type);
+ if(!ext || !house->Type || !HouseExt::TryFetch(house))return E_UNEXPECTED;
+ *available=ext->IsAvailable(house)?TRUE:FALSE;
+ return S_OK;
+}

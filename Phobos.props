@@ -31,7 +31,8 @@
   <!-- Global -->
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalOptions>/d1trimfile:"$(MSBuildProjectDirectory)" %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/FS /d1trimfile:"$(MSBuildProjectDirectory)" %(AdditionalOptions)</AdditionalOptions>
+      <DebugInformationFormat>OldStyle</DebugInformationFormat>
       <WarningLevel>Level4</WarningLevel>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <SDLCheck />
@@ -47,7 +48,6 @@
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
       <AssemblerListingLocation>$(IntDir)\%(Directory)</AssemblerListingLocation>
       <ObjectFileName>$(IntDir)\%(Directory)</ObjectFileName>
       <CallingConvention>StdCall</CallingConvention>

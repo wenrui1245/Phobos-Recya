@@ -1,4 +1,5 @@
 ﻿#include "MissileTrajectory.h"
+#include "MissileWaterSurface.h"
 
 #include <Ext/Bullet/Body.h>
 
@@ -38,14 +39,18 @@ bool MissileTrajectoryType::Load(PhobosStreamReader& Stm, bool RegisterForChange
 {
 	this->ActualTrajectoryType::Load(Stm, false);
 	this->Serialize(Stm);
-	return true;
+	bool enabled = false;
+	if (!MissileWaterSurface::Load(Stm, enabled))
+		return false;
+	this->IgnoreWaterSurface = enabled;
+	return Stm.Success();
 }
 
 bool MissileTrajectoryType::Save(PhobosStreamWriter& Stm) const
 {
 	this->ActualTrajectoryType::Save(Stm);
 	const_cast<MissileTrajectoryType*>(this)->Serialize(Stm);
-	return true;
+	return MissileWaterSurface::Save(Stm, this->IgnoreWaterSurface);
 }
 
 void MissileTrajectoryType::Read(CCINIClass* const pINI, const char* pSection)
@@ -62,6 +67,9 @@ void MissileTrajectoryType::Read(CCINIClass* const pINI, const char* pSection)
 	this->TargetSnapDistance.Read(exINI, pSection, "Trajectory.TargetSnapDistance");
 
 	// Missile
+	this->IgnoreWaterSurface.Read(exINI, pSection, "Trajectory.Missile.IgnoreWaterSurface");
+	if (this->IgnoreWaterSurface)
+		Debug::Log("missile-water: configured=1 scope=water-surface-only.\n");
 	this->UniqueCurve.Read(exINI, pSection, "Trajectory.Missile.UniqueCurve");
 
 	// Independent reading section
@@ -197,6 +205,16 @@ bool MissileTrajectory::OnVelocityCheck()
 	}
 
 	return this->PhobosTrajectory::OnVelocityCheck();
+}
+
+bool MissileTrajectory::CanHitGroundAt(const CoordStruct& position) const
+{
+ // Only the water-surface floor test is exempt. No owner/target/depth guesses:
+ // inspect each actual path sample so crossing into land restores collision.
+ if (!this->Type->IgnoreWaterSurface)
+  return true;
+ const auto cell = MapClass::Instance.TryGetCellAt(position);
+ return !cell || cell->LandType != LandType::Water;
 }
 
 TrajectoryCheckReturnType MissileTrajectory::OnDetonateUpdate(const CoordStruct& position)

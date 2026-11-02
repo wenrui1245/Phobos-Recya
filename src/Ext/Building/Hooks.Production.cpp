@@ -129,6 +129,14 @@ DEFINE_HOOK(0x4CA07A, FactoryClass_AbandonProduction_Phobos, 0x8)
 
 	auto const pTechno = pFactory->Object;
 
+	// This factory is not attached to Factory_BuildingType. Abandoning its
+	// product must not release the main building line's selected construction yard.
+	if (auto const pHouseExt = HouseExt::TryFetch(pFactory->Owner))
+	{
+		if (pHouseExt->AIDefenseFactory == pFactory)
+			return 0;
+	}
+
 	if (calledby < 0x7F0000) // Replace the old log with this to figure out where keeps flushing the stream
 	{
 		Debug::LogGame("(%08x) : %s is abandoning production of %s[%s]\n"
