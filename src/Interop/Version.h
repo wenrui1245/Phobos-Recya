@@ -8,7 +8,7 @@
 // ============================================================================
 
 #define INTEROP_API_VERSION_MAJOR 1
-#define INTEROP_API_VERSION_MINOR 2
+#define INTEROP_API_VERSION_MINOR 3
 #define INTEROP_API_VERSION_PATCH 0
 
 /// <summary>
@@ -46,3 +46,9 @@ DEFINE_EXPORT(int, SomeOldAPI_Deprecated,
 	int param1
 );
 */
+
+class HouseClass;
+class SuperWeaponTypeClass;
+// Availability: [1.3.0, 0). S_OK writes BOOL; failures never report available.
+DEFINE_EXPORT(HRESULT, Phobos_QuerySuperWeaponAvailability,
+ HouseClass* house, SuperWeaponTypeClass* type, BOOL* available);

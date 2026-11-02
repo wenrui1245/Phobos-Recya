@@ -1593,6 +1593,14 @@ Trajectory.Bombard.TurningPointAnims=        ; List of AnimationTypes
 
 #### Missile trajectory
 
+- `Trajectory.Missile.IgnoreWaterSurface=yes` allows Missile projectiles to travel beneath water without detonating on the water surface. Land and beach floor collision, explicit `SubjectToWater` detonation, obstacle checks, range limits and target hits remain effective. The default is `no`.
+
+In `rulesmd.ini`:
+```ini
+[ProjectileType]
+Trajectory.Missile.IgnoreWaterSurface=no ; boolean, water-surface collision exemption, default no
+```
+
 - Its trajectory looks a bit like a `ROT`, but its settings are more flexible. It also has a unique trajectory.
   - `Trajectory.Missile.UniqueCurve` controls whether to enable simulated Qian Xuesen trajectory. After enabling this, it will NOT respect the other items.
   - `Trajectory.Missile.PreAimCoord` controls the initial flight direction of the projectile, and after reaching this coordinate, it will begin to turn towards the target direction. When it is set to 0,0,0 , it will directly face the target.

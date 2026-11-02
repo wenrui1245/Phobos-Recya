@@ -296,7 +296,7 @@ bool PhobosTrajectory::OnVelocityCheck()
 			const auto cellHeight = MapClass::Instance.GetCellFloorHeight(theTargetCoords);
 
 			// Check whether the height of the ground is about to exceed the height of the projectile
-			if (cellHeight >= theTargetCoords.Z)
+			if (this->CanHitGroundAt(theTargetCoords) && cellHeight >= theTargetCoords.Z)
 			{
 				// How much reduction is needed to calculate the velocity vector
 				const auto newRatio = std::abs((pBullet->Location.Z - cellHeight) / this->MovingVelocity.Z);
@@ -347,7 +347,7 @@ bool PhobosTrajectory::OnVelocityCheck()
 				// Check one by one towards the direction of the next frame's position
 				for (size_t i = 0; i < largePace; ++i)
 				{
-					if ((subjectToGround && (curCoord.Z + 16) < MapClass::Instance.GetCellFloorHeight(curCoord)) // Below ground level? (16 -> error range)
+					if ((subjectToGround && this->CanHitGroundAt(curCoord) && (curCoord.Z + 16) < MapClass::Instance.GetCellFloorHeight(curCoord)) // Below ground level? (16 -> error range)
 						|| (checkThrough && pBulletExt->CheckThroughAndSubjectInCell(pCurCell, pOwner)) // Blocked by obstacles?
 						|| (subjectToWCS && TrajectoryHelper::GetObstacle(pSourceCell, pTargetCell, pLastCell, curCoord, pBulletType, pOwner)) // Impact on the wall/cliff/solid?
 						|| (checkLevel ? (pBulletType->Level && pCurCell->IsOnFloor()) // Level or above land/water?
@@ -434,7 +434,7 @@ TrajectoryCheckReturnType PhobosTrajectory::OnDetonateUpdate(const CoordStruct& 
 		return TrajectoryCheckReturnType::Detonate;
 
 	// Below ground level? (16 -> error range)
-	if (this->GetCanHitGround() && MapClass::Instance.GetCellFloorHeight(position) >= (position.Z + 16))
+	if (this->CanHitGroundAt(position) && MapClass::Instance.GetCellFloorHeight(position) >= (position.Z + 16))
 		return TrajectoryCheckReturnType::Detonate;
 
 	// Skip all vanilla checks

@@ -113,6 +113,7 @@ public:
 	virtual const PhobosTrajectoryType* GetType() const = 0;
 	virtual void OpenFire();
 	virtual bool GetCanHitGround() const { return true; }
+	virtual bool CanHitGroundAt(const CoordStruct& position) const { return this->GetCanHitGround(); }
 	virtual CoordStruct GetRetargetCenter() const { return this->Bullet->TargetCoords; }
 	virtual void SetBulletNewTarget(AbstractClass* const pTarget);
 	virtual bool CalculateBulletVelocity(const double speed);

@@ -49,8 +49,7 @@ static bool __forceinline ShouldRemoveSmudgeCell(const int index, const int time
 
 DEFINE_HOOK(0x55B6B3, LogicClass_AI_After, 0x5)
 {
-	for (auto const& attachment : AttachmentClass::Array)
-		attachment->AI();
+	AttachmentClass::UpdateAll();
 
 	// AI 防御建筑产线（与主建筑产线并行的旁路，见 Hooks.AIDualBuildingProduction）
 	for (auto pHouse : HouseClass::Array)

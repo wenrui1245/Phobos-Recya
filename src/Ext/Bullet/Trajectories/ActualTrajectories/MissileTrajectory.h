@@ -8,6 +8,7 @@ class MissileTrajectoryType final : public ActualTrajectoryType
 {
 public:
 	MissileTrajectoryType() : ActualTrajectoryType()
+		, IgnoreWaterSurface { false }
 		, UniqueCurve { false }
 		, FacingCoord { false }
 		, ReduceCoord { true }
@@ -30,6 +31,7 @@ public:
 		, VolatilityPeriod { 4 }
 	{ }
 
+	Valueable<bool> IgnoreWaterSurface;
 	Valueable<bool> UniqueCurve;
 	Valueable<bool> FacingCoord;
 	Valueable<bool> ReduceCoord;
@@ -102,6 +104,7 @@ public:
 	virtual void OnUnlimbo() override;
 	virtual bool OnEarlyUpdate() override;
 	virtual bool OnVelocityCheck() override;
+	virtual bool CanHitGroundAt(const CoordStruct& position) const override;
 	virtual TrajectoryCheckReturnType OnDetonateUpdate(const CoordStruct& position) override;
 	virtual const PhobosTrajectoryType* GetType() const override { return this->Type; }
 	virtual void OpenFire() override;

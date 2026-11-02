@@ -59,10 +59,10 @@ TechnoExt::~TechnoExt()
 
 	if (!this->ChildAttachments.empty())
 	{
-		for (auto const& pAttachment : this->ChildAttachments)
-			pAttachment->UnInit();
-
+		auto attachments = std::move(this->ChildAttachments);
 		this->ChildAttachments.clear();
+		for (auto const& pAttachment : attachments)
+			pAttachment->UnInit();
 	}
 
 	if (pTypeExt->AutoDeath_Behavior.isset())
@@ -982,14 +982,12 @@ void TechnoExt::DestroyAttachments(TechnoClass* pThis, TechnoClass* pSource)
 	if (!pExt)
 		return;
 
-	for (auto const& pAttachment : pExt->ChildAttachments)
-		pAttachment->Destroy(pSource);
-
-	// TODO I am not sure, without clearing the attachments it sometimes crashes under
-	// weird circumstances, like if the techno exists but the parent attachment isn't,
-	// in particular in can enter cell hook, this may be a bandaid fix for something
-	// way worse like improper occupation clearance or whatever - Kerbiter
+	auto attachments = std::move(pExt->ChildAttachments);
 	pExt->ChildAttachments.clear();
+	AttachmentRuntime::Watch<TechnoClass> source(pSource);
+	for (auto const& pAttachment : attachments)
+		pAttachment->Destroy(source.Get());
+
 }
 
 void TechnoExt::HandleDestructionAsChild(TechnoClass* pThis)
