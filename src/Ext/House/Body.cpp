@@ -895,6 +895,11 @@ void HouseExt::Serialize(T& Stm)
 		.Process(this->LastBuiltNavalVehicleType)
 		.Process(this->ProducingNavalUnitTypeIndex)
 		.Process(this->ProducingDefenseBuildingTypeIndex)
+		.Process(this->AIDefenseFactory)
+		.Process(this->AIDefenseNodeCoords)
+		.Process(this->AIDefenseNextPlaceFrame)
+		.Process(this->AIDefensePlaceAttempts)
+		.Process(this->AIDefenseAbandonedNodes)
 		.Process(this->CombatAlertTimer)
 		.Process(this->NumAirpads_NonMFB)
 		.Process(this->NumBarracks_NonMFB)
@@ -1495,6 +1500,12 @@ DEFINE_HOOK(0x4F6532, HouseClass_CTOR, 0x5)
 DEFINE_HOOK(0x4F7371, HouseClass_DTOR, 0x6)
 {
 	GET(HouseClass*, pItem, ESI);
+
+	// Release while the extension is still attached: abandon dispatch uses it
+	// to distinguish this factory from the main production line. Container-wide
+	// save/load teardown instead leaves native factories to the game's cleanup.
+	if (auto const pExt = HouseExt::TryFetch(pItem))
+		pExt->ClearAIDefenseFactory();
 
 	HouseExt::ExtMap.Remove(pItem);
 

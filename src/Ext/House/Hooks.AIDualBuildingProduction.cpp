@@ -4,7 +4,6 @@
 
 #include <BuildingClass.h>
 #include <BuildingTypeClass.h>
-#include <EventClass.h>
 #include <FactoryClass.h>
 #include <HouseClass.h>
 #include <ScenarioClass.h>
@@ -15,18 +14,36 @@ namespace DualBuildingTemp
 {
 	// 放置尝试次数上限：超过即放弃该节点
 	constexpr int MaxPlaceAttempts = 8;
+	constexpr int PlaceRetryInterval = 30;
 
-	// 0x42E780：BaseClass 节点判定——"节点位置上已有建筑"（真 → 原版挑选会跳过）
-	inline bool IsNodeAlreadyBuilt(BaseClass* pBase, int index)
+	// UnitFromFactory is also the native Place-event handler. The YRpp declaration
+	// discards its bool return. Verified at 0x4FB512 (AL = success, ret 0x10),
+	// with a false return at 0x4FB5BA. Use that result, not a possibly freed factory.
+	inline bool PlaceDefense(HouseClass* pHouse, BuildingTypeClass* pType, const CellStruct& coords)
 	{
-		return reinterpret_cast<bool(__thiscall*)(BaseClass*, int)>(0x42E780)(pBase, index);
+		return reinterpret_cast<bool(__thiscall*)(HouseClass*, AbstractType, int, bool, const CellStruct*)>(0x4FB0E0)
+			(pHouse, AbstractType::Building, pType->ArrayIndex, pType->Naval, &coords);
 	}
 
-	// 0x50CAD0：HouseClass 判定"已标记建造（Placed）的节点"是否仍应重新挑选
-	// （基地建筑被摧毁后的重建等情形）
-	inline bool CanRepickPlacedNode(HouseClass* pHouse, BaseNodeClass* pNode)
+	inline bool UsesDefenseLine(HouseClass* pHouse)
 	{
-		return reinterpret_cast<bool(__thiscall*)(HouseClass*, BaseNodeClass*)>(0x50CAD0)(pHouse, pNode);
+		return !pHouse->IsControlledByHuman() && pHouse->Production;
+	}
+
+	inline bool CanPickNode(HouseClass* pHouse, int index)
+	{
+		auto& node = pHouse->Base.BaseNodes.Items[index];
+		if (reinterpret_cast<bool(__thiscall*)(BaseClass*, int)>(0x42E780)(&pHouse->Base, index))
+			return false;
+
+		if (!*reinterpret_cast<const DWORD*>(0xA8B238) || !node.Placed)
+			return true;
+
+		if (!pHouse->IsValidBaseNode(&node))
+			return false;
+
+		node.MapCoords = *reinterpret_cast<const CellStruct*>(0x89C310);
+		return true;
 	}
 
 	// 挂接式升级/插件类型（PowersUp 系列，需要宿主建筑）不归防御产线：它们
@@ -66,27 +83,12 @@ namespace DualBuildingTemp
 			auto& node = nodes.Items[i];
 
 			// 防御产线承接的节点不参与主产线挑选
-			if (IsDefenseLineNode(node))
+			if (UsesDefenseLine(pHouse) && IsDefenseLineNode(node))
 				continue;
 
 			// 节点位置已有建筑 → 跳过（与原版一致）
-			if (IsNodeAlreadyBuilt(&pHouse->Base, i))
-				continue;
-
-			// [0xA8B238] 为 0 时原版无视 Placed 直接选中该节点
-			if (!*reinterpret_cast<const DWORD*>(0xA8B238))
+			if (CanPickNode(pHouse, i))
 				return &node;
-
-			if (!node.Placed)
-				return &node;
-
-			// 已标记建造但满足重选条件（如基地建筑被摧毁需重建）：原版会记录
-			// 规划格并选中该节点，这里保持一致
-			if (CanRepickPlacedNode(pHouse, &node))
-			{
-				node.MapCoords = *reinterpret_cast<const CellStruct*>(0x89C310);
-				return &node;
-			}
 		}
 
 		return nullptr;
@@ -108,91 +110,84 @@ namespace DualBuildingTemp
 //      "已入队则移除重挑"的再挑选）都换成本文件的挑选循环，硬性跳过这些
 //      节点，主产线永远选不到防御建筑。挂接式升级/插件类型（PowersUp 系列）
 //      除外——它们仍由原版主产线以宿主感知的方式放置；
-//   2. 在第一座建造厂上以独立 FactoryClass 生产（与原版 AI 工厂的创建方式
-//      一致：FactoryClass + DemandProduction）；
-//   3. 生产完成后在该节点自己的坐标发 Place 事件放置（沿用基地规划的位置），
+//   2. 通过独立 FactoryClass 生产（DemandProduction + Unsuspend），
+//      实际建造厂由原版 FindFactory 查找；不占用建造厂的主产线 Factory 字段；
+//   3. 生产完成后在该节点自己的坐标调用原版放置函数（沿用基地规划的位置），
 //      成功后把节点标记为已放置；反复放置失败（如目标位置被永久堵死）达
 //      上限后放弃该节点，防止产线被卡死；建造厂被打包/出售时与原版同样视为
 //      产线丢失，放弃生产。
 
-// 防御产线工厂生命周期：获取任务（扫描基地节点）、创建（挂在第一座建造厂上）、
-// 完成放置、清理。
+// Run in the deterministic simulation on every peer. Do not enqueue AI Place
+// commands in OutList: it is a local input queue, not a placement acknowledgement.
 void HouseExt::UpdateAIDefenseProduction()
 {
 	auto const pThis = this->OwnerObject();
 	const int defIdx = this->ProducingDefenseBuildingTypeIndex;
+	if (pThis->IsControlledByHuman() || pThis->Defeated || pThis->ConYards.Count <= 0)
+	{
+		this->ClearAIDefenseFactory();
+		return;
+	}
+
+	if (!pThis->Production)
+	{
+		if (this->AIDefenseFactory && this->AIDefenseFactory->Object)
+			this->AIDefenseFactory->Suspend(false);
+		return;
+	}
 
 	// —— 既有任务的生命周期 ——
 	if (defIdx != -1)
 	{
-		// 建造厂全部消失（被卖/打包且无后续建造厂）：与原版一致，产线随工厂丢失
-		if (pThis->ConYards.Count <= 0)
+		if (defIdx < 0 || defIdx >= BuildingTypeClass::Array.Count || !this->AIDefenseFactory)
+		{
+			// A factory removed by the game is invalidated through Detach. Never
+			// recreate an unpaid/default-position job from only its saved type index.
+			this->ClearAIDefenseFactory();
+			return;
+		}
+
+		auto const pType = BuildingTypeClass::Array.GetItem(defIdx);
+		auto const pFactory = this->AIDefenseFactory;
+		if (pFactory->Owner != pThis || !pFactory->Object || pFactory->Object->GetType() != pType)
 		{
 			this->ClearAIDefenseFactory();
-			this->ProducingDefenseBuildingTypeIndex = -1;
 			return;
 		}
 
-		// 工厂所有者失效 → 放弃
-		if (this->AIDefenseFactory && !this->AIDefenseFactory->Owner)
+		// Match native factory startup and BuildingExt::UpdateFactoryQueues.
+		// A disabled/unpowered yard suspends progress without losing paid work.
+		auto const pBuilder = pType->FindFactory(true, true, true, pThis);
+		if (!pBuilder || pBuilder->Deactivated || !pBuilder->HasPower
+			|| (pThis->Primary_ForDefenses && pThis->Primary_ForDefenses != pFactory))
 		{
+			pFactory->Suspend(false);
+			return;
+		}
+
+		pThis->SetPrimaryFactory(pFactory, AbstractType::BuildingType, false, BuildCat::Combat);
+		if (!pFactory->IsDone())
+		{
+			if (pFactory->IsSuspended && !pFactory->IsManual)
+				pFactory->Unsuspend(false);
+			return;
+		}
+
+		if (Unsorted::CurrentFrame < this->AIDefenseNextPlaceFrame)
+			return;
+
+		this->AIDefenseNextPlaceFrame = Unsorted::CurrentFrame + DualBuildingTemp::PlaceRetryInterval;
+		// Native placement can delete the factory, including through Phobos hooks.
+		// OnDetach clears our pointer; do not dereference pFactory after this call.
+		if (DualBuildingTemp::PlaceDefense(pThis, pType, this->AIDefenseNodeCoords))
+		{
+			this->MarkAIDefenseNodePlaced();
 			this->ClearAIDefenseFactory();
-			this->ProducingDefenseBuildingTypeIndex = -1;
-			return;
 		}
-
-		if (!this->AIDefenseFactory)
+		else if (++this->AIDefensePlaceAttempts >= DualBuildingTemp::MaxPlaceAttempts)
 		{
-			auto const pType = BuildingTypeClass::Array.GetItem(defIdx);
-			auto const pFactory = GameCreate<FactoryClass>();
-
-			if (!pFactory->DemandProduction(pType, pThis, false))
-			{
-				GameDelete(pFactory);
-				this->ProducingDefenseBuildingTypeIndex = -1;
-				return;
-			}
-
-			this->AIDefenseFactory = pFactory;
-			// 防御产线的 Place 事件经由 Primary_ForDefenses 路由到本工厂
-			pThis->SetPrimaryFactory(pFactory, AbstractType::BuildingType, false, BuildCat::Combat);
-			return;
-		}
-
-		// 生产完成 → 在节点坐标发 Place 事件放置（带重试间隔，避免事件与
-		// 疏散尝试每帧刷屏）
-		if (this->AIDefenseFactory->Object && this->AIDefenseFactory->IsDone())
-		{
-			if (Unsorted::CurrentFrame < this->AIDefenseNextPlaceFrame)
-				return;
-
-			this->AIDefenseNextPlaceFrame = Unsorted::CurrentFrame + 30;
-
-			if (auto const pType = abstract_cast<BuildingTypeClass*>(this->AIDefenseFactory->Object->GetType()))
-			{
-				const int place = pType->Naval ? 1 : 0;
-				const auto arrayIndex = pType->GetArrayIndex();
-				EventClass::OutList.Add(EventClass(pThis->ArrayIndex, EventType::Place,
-					AbstractType::Building, arrayIndex, place, this->AIDefenseNodeCoords));
-			}
-
-			// 放置成功后对象会离开工厂
-			if (!this->AIDefenseFactory->Object)
-			{
-				this->MarkAIDefenseNodePlaced();
-				this->ClearAIDefenseFactory();
-				this->ProducingDefenseBuildingTypeIndex = -1;
-				this->AIDefensePlaceAttempts = 0;
-			}
-			else if (++this->AIDefensePlaceAttempts >= DualBuildingTemp::MaxPlaceAttempts)
-			{
-				// 反复放置失败（位置被永久堵死、缺宿主等）：放弃本节点（记录到
-				// 放弃列表，此后不再承接），防止产线被一个永远无法放置的任务卡死
-				this->AIDefenseAbandonedNodes.push_back(this->AIDefenseNodeCoords);
-				this->ClearAIDefenseFactory();
-				this->ProducingDefenseBuildingTypeIndex = -1;
-				this->AIDefensePlaceAttempts = 0;
-			}
+			this->AIDefenseAbandonedNodes.push_back(this->AIDefenseNodeCoords);
+			this->ClearAIDefenseFactory();
 		}
 
 		return;
@@ -201,7 +196,7 @@ void HouseExt::UpdateAIDefenseProduction()
 	// —— 获取新任务 ——
 	// 所有防御建筑需求一律由本产线承接（原版挑选已通过 0x4FE401/0x4FE493 钩子
 	// 排除 Combat 节点），不依赖主产线是否空闲；挂接式升级/插件类型不承接
-	if (pThis->ConYards.Count <= 0)
+	if (pThis->Primary_ForDefenses)
 		return;
 
 	if (Unsorted::CurrentFrame < this->AIDefenseNextPlaceFrame)
@@ -218,11 +213,7 @@ void HouseExt::UpdateAIDefenseProduction()
 			continue;
 
 		// 与原版挑选一致：节点位置已有建筑（含已建成本类型）不重复建造
-		if (DualBuildingTemp::IsNodeAlreadyBuilt(&pThis->Base, i))
-			continue;
-
-		// 已标记建造且不满足重选条件的节点不重试（与原版挑选的 Placed 语义一致）
-		if (node.Placed && !DualBuildingTemp::CanRepickPlacedNode(pThis, &node))
+		if (!DualBuildingTemp::CanPickNode(pThis, i))
 			continue;
 
 		// 曾因反复放置失败被放弃的节点不再承接
@@ -235,6 +226,10 @@ void HouseExt::UpdateAIDefenseProduction()
 		auto const pType = BuildingTypeClass::Array.GetItem(node.BuildingTypeIndex);
 
 		if (pThis->CanBuild(pType, false, false) == CanBuildResult::Unbuildable)
+			continue;
+
+		auto const pBuilder = pType->FindFactory(true, true, true, pThis);
+		if (!pBuilder || pBuilder->Deactivated || !pBuilder->HasPower)
 			continue;
 
 		if (pType->GetActualCost(pThis) > money)
@@ -258,25 +253,44 @@ void HouseExt::UpdateAIDefenseProduction()
 		}
 
 		this->AIDefenseFactory = pFactory;
-		// 防御产线的 Place 事件经由 Primary_ForDefenses 路由到本工厂
+		// The native placement handler routes Combat products through this slot.
 		pThis->SetPrimaryFactory(pFactory, AbstractType::BuildingType, false, BuildCat::Combat);
+		pFactory->Unsuspend(false);
 		return;
 	}
 }
 
 void HouseExt::ClearAIDefenseFactory()
 {
-	if (!this->AIDefenseFactory)
-		return;
+	auto const pFactory = this->AIDefenseFactory;
+	if (pFactory)
+	{
+		if (this->OwnerObject()->Primary_ForDefenses == pFactory)
+			this->OwnerObject()->SetPrimaryFactory(nullptr, AbstractType::BuildingType, false, BuildCat::Combat);
 
-	if (this->OwnerObject()->Primary_ForDefenses == this->AIDefenseFactory)
-		this->OwnerObject()->SetPrimaryFactory(nullptr, AbstractType::BuildingType, false, BuildCat::Combat);
+		// Keep the identity until AbandonProduction returns: the abandon hooks
+		// must distinguish this line from the native building production slot.
+		// If ownership has changed, only relinquish our reference. Its new owner
+		// (or native teardown) is responsible for destroying that factory.
+		if (pFactory->Owner == this->OwnerObject())
+		{
+			if (pFactory->Object)
+				pFactory->AbandonProduction();
 
-	if (this->AIDefenseFactory->Object)
-		this->AIDefenseFactory->AbandonProduction();
+			GameDelete(pFactory);
+		}
+		this->AIDefenseFactory = nullptr;
+	}
 
-	GameDelete(this->AIDefenseFactory);
-	this->AIDefenseFactory = nullptr;
+	this->ProducingDefenseBuildingTypeIndex = -1;
+	this->AIDefenseNodeCoords = CellStruct::Empty;
+	this->AIDefensePlaceAttempts = 0;
+}
+
+void HouseExt::OnDetach(FactoryClass* pTarget, bool removed)
+{
+	if (removed && this->AIDefenseFactory == pTarget)
+		this->AIDefenseFactory = nullptr;
 }
 
 void HouseExt::MarkAIDefenseNodePlaced()
@@ -293,10 +307,11 @@ void HouseExt::MarkAIDefenseNodePlaced()
 	{
 		auto& node = nodes.Items[i];
 
-		if (!node.Placed && node.BuildingTypeIndex == defIdx
+		if (node.BuildingTypeIndex == defIdx
 			&& node.MapCoords == this->AIDefenseNodeCoords)
 		{
 			node.Placed = true;
+			node.Attempts = 0;
 			break;
 		}
 	}
