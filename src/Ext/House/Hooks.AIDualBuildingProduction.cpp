@@ -67,14 +67,10 @@ namespace DualBuildingTemp
 		return IsDefenseLineType(BuildingTypeClass::Array.GetItem(node.BuildingTypeIndex));
 	}
 
-	// 供 AI_Building 的两处节点挑选调用（0x4FE401 / 0x4FE493）使用。
-	//
-	// 逐句复刻原版挑选循环（0x42EB50 的语义：已建判定 → [0xA8B238] 全局旗标 →
-	// Placed → 0x50CAD0 复选），只额外硬性跳过由防御产线承接的节点。
-	// 不能用"临时置 Placed 再还原"来遮蔽：Placed 的实际语义是"该节点已建造"，
-	// 原版对 Placed 节点仍会经 0x50CAD0 复选重新选中，且 [0xA8B238] 为 0 时
-	// 会完全无视 Placed 直接选中——遮蔽不可靠（实测主产线仍会造出防御建筑）。
-	inline BaseNodeClass* PickExcludingDefense(HouseClass* pHouse)
+	// Skip only the exact defense job already accepted by the native scheduler,
+	// or a job abandoned after its placement retries. Future Combat nodes must
+	// remain in the native sequence, including -1 defense / -2 stop / -3 wall.
+	inline BaseNodeClass* PickAvailableBuildingNode(HouseClass* pHouse)
 	{
 		auto& nodes = pHouse->Base.BaseNodes;
 
@@ -82,9 +78,22 @@ namespace DualBuildingTemp
 		{
 			auto& node = nodes.Items[i];
 
-			// 防御产线承接的节点不参与主产线挑选
 			if (UsesDefenseLine(pHouse) && IsDefenseLineNode(node))
-				continue;
+			{
+				auto const pExt = HouseExt::Fetch(pHouse);
+				if (pExt->AIDefenseFactory
+					&& pExt->ProducingDefenseBuildingTypeIndex == node.BuildingTypeIndex
+					&& pExt->AIDefenseNodeCoords == node.MapCoords)
+				{
+					continue;
+				}
+
+				if (std::find(pExt->AIDefenseAbandonedNodes.begin(), pExt->AIDefenseAbandonedNodes.end(),
+					node.MapCoords) != pExt->AIDefenseAbandonedNodes.end())
+				{
+					continue;
+				}
+			}
 
 			// 节点位置已有建筑 → 跳过（与原版一致）
 			if (CanPickNode(pHouse, i))
@@ -101,21 +110,12 @@ namespace DualBuildingTemp
 // 主建筑与防御建筑（BuildCat::Combat）共用，AI 无法像玩家那样同时建造主要
 // 建筑物与防御建筑物。
 //
-// 实现要点：完全不介入原版 AI_Building（0x4FE3E0）的挑选-入队管线（该管线
-// 按"单产槽"设计，任何旁路写入都会使其队列状态自相矛盾而堵塞）。防御产线
-// 作为一条独立的旁路存在：
-//
-//   1. 所有待建的 Combat 节点一律由管理器承接为防御产线任务（可负担性等
-//      检查与原版一致）；原版 AI_Building 内的两处节点挑选（首轮挑选与
-//      "已入队则移除重挑"的再挑选）都换成本文件的挑选循环，硬性跳过这些
-//      节点，主产线永远选不到防御建筑。挂接式升级/插件类型（PowersUp 系列）
-//      除外——它们仍由原版主产线以宿主感知的方式放置；
-//   2. 通过独立 FactoryClass 生产（DemandProduction + Unsuspend），
-//      实际建造厂由原版 FindFactory 查找；不占用建造厂的主产线 Factory 字段；
-//   3. 生产完成后在该节点自己的坐标调用原版放置函数（沿用基地规划的位置），
-//      成功后把节点标记为已放置；反复放置失败（如目标位置被永久堵死）达
-//      上限后放弃该节点，防止产线被卡死；建造厂被打包/出售时与原版同样视为
-//      产线丢失，放弃生产。
+// Native AI_Building chooses and prepares the next node first. Only its final
+// dispatch is split into ordinary and Combat production. Never scan the whole
+// plan for future Combat buildings: CanBuild is not the AI's development order,
+// and doing so can start a late superweapon before the first defense marker.
+// The ordinary line may pass the exact defense job already in progress, while
+// the next unclaimed defense node waits for the defense slot to become free.
 
 // Run in the deterministic simulation on every peer. Do not enqueue AI Place
 // commands in OutList: it is a local input queue, not a placement acknowledgement.
@@ -193,71 +193,57 @@ void HouseExt::UpdateAIDefenseProduction()
 		return;
 	}
 
-	// —— 获取新任务 ——
-	// 所有防御建筑需求一律由本产线承接（原版挑选已通过 0x4FE401/0x4FE493 钩子
-	// 排除 Combat 节点），不依赖主产线是否空闲；挂接式升级/插件类型不承接
-	if (pThis->Primary_ForDefenses)
-		return;
+	// Idle: wait for native AI_Building to dispatch a job. No independent scan.
+}
 
-	if (Unsorted::CurrentFrame < this->AIDefenseNextPlaceFrame)
-		return;
-
-	const long money = pThis->Available_Money();
-	auto& nodes = pThis->Base.BaseNodes;
-
-	for (int i = 0; i < nodes.Count; ++i)
+bool HouseExt::TryStartAIDefenseProduction(const BaseNodeClass& node)
+{
+	auto const pThis = this->OwnerObject();
+	if (!DualBuildingTemp::UsesDefenseLine(pThis) || pThis->Defeated || pThis->ConYards.Count <= 0
+		|| this->ProducingDefenseBuildingTypeIndex != -1 || this->AIDefenseFactory
+		|| pThis->Primary_ForDefenses || !DualBuildingTemp::IsDefenseLineNode(node)
+		|| Unsorted::CurrentFrame < this->AIDefenseNextPlaceFrame)
 	{
-		auto& node = nodes.Items[i];
-
-		if (!DualBuildingTemp::IsDefenseLineNode(node))
-			continue;
-
-		// 与原版挑选一致：节点位置已有建筑（含已建成本类型）不重复建造
-		if (!DualBuildingTemp::CanPickNode(pThis, i))
-			continue;
-
-		// 曾因反复放置失败被放弃的节点不再承接
-		if (std::find(this->AIDefenseAbandonedNodes.begin(), this->AIDefenseAbandonedNodes.end(),
-			node.MapCoords) != this->AIDefenseAbandonedNodes.end())
-		{
-			continue;
-		}
-
-		auto const pType = BuildingTypeClass::Array.GetItem(node.BuildingTypeIndex);
-
-		if (pThis->CanBuild(pType, false, false) == CanBuildResult::Unbuildable)
-			continue;
-
-		auto const pBuilder = pType->FindFactory(true, true, true, pThis);
-		if (!pBuilder || pBuilder->Deactivated || !pBuilder->HasPower)
-			continue;
-
-		if (pType->GetActualCost(pThis) > money)
-		{
-			this->AIDefenseNextPlaceFrame = Unsorted::CurrentFrame + 30;
-			return;
-		}
-
-		// 记录任务并启动生产
-		this->ProducingDefenseBuildingTypeIndex = node.BuildingTypeIndex;
-		this->AIDefenseNodeCoords = node.MapCoords;
-		this->AIDefensePlaceAttempts = 0;
-
-		auto const pFactory = GameCreate<FactoryClass>();
-
-		if (!pFactory->DemandProduction(pType, pThis, false))
-		{
-			GameDelete(pFactory);
-			this->ProducingDefenseBuildingTypeIndex = -1;
-			return;
-		}
-
-		this->AIDefenseFactory = pFactory;
-		// The native placement handler routes Combat products through this slot.
-		pThis->SetPrimaryFactory(pFactory, AbstractType::BuildingType, false, BuildCat::Combat);
-		pFactory->Unsuspend(false);
-		return;
+		return false;
 	}
+
+	if (std::find(this->AIDefenseAbandonedNodes.begin(), this->AIDefenseAbandonedNodes.end(),
+		node.MapCoords) != this->AIDefenseAbandonedNodes.end())
+	{
+		return false;
+	}
+
+	auto const pType = BuildingTypeClass::Array.GetItem(node.BuildingTypeIndex);
+	if (pThis->CanBuild(pType, false, false) == CanBuildResult::Unbuildable)
+		return false;
+
+	auto const pBuilder = pType->FindFactory(true, true, true, pThis);
+	if (!pBuilder || pBuilder->Deactivated || !pBuilder->HasPower)
+		return false;
+
+	if (pType->GetActualCost(pThis) > pThis->Available_Money())
+	{
+		this->AIDefenseNextPlaceFrame = Unsorted::CurrentFrame + DualBuildingTemp::PlaceRetryInterval;
+		return false;
+	}
+
+	// The caller has already run native node selection, defense-marker expansion
+	// and power insertion. Do not repeat IsValidBaseNode or repick its coordinates.
+	this->ProducingDefenseBuildingTypeIndex = node.BuildingTypeIndex;
+	this->AIDefenseNodeCoords = node.MapCoords;
+	this->AIDefensePlaceAttempts = 0;
+	auto const pFactory = GameCreate<FactoryClass>();
+	if (!pFactory->DemandProduction(pType, pThis, false))
+	{
+		GameDelete(pFactory);
+		this->ClearAIDefenseFactory();
+		return false;
+	}
+
+	this->AIDefenseFactory = pFactory;
+	pThis->SetPrimaryFactory(pFactory, AbstractType::BuildingType, false, BuildCat::Combat);
+	pFactory->Unsuspend(false);
+	return true;
 }
 
 void HouseExt::ClearAIDefenseFactory()
@@ -318,7 +304,7 @@ void HouseExt::MarkAIDefenseNodePlaced()
 }
 
 // AI_Building（0x4FE3E0）中的待建节点挑选调用（lea ecx,[ebp+0x5700]; push -1;
-// call 0x42EB20，共 0xD 字节），换成本文件的挑选循环（硬性跳过防御产线节点）。
+// call 0x42EB20，共 0xD 字节），只跳过已接单的防御节点。
 // 注意必须整体替换这三条指令——若只替换 call 本身，自定义路径返回时原版
 // push 的 -1 参数会残留在栈上，导致函数尾声 ret 读到野地址（实测崩溃）。
 DEFINE_HOOK(0x4FE401, HouseClass_AI_BuildingProduction_PickNode, 0xD)
@@ -327,7 +313,7 @@ DEFINE_HOOK(0x4FE401, HouseClass_AI_BuildingProduction_PickNode, 0xD)
 
 	GET(HouseClass* const, pThis, EBP);
 
-	R->EAX(DualBuildingTemp::PickExcludingDefense(pThis));
+	R->EAX(DualBuildingTemp::PickAvailableBuildingNode(pThis));
 	return AfterPick;
 }
 
@@ -340,6 +326,22 @@ DEFINE_HOOK(0x4FE493, HouseClass_AI_BuildingProduction_RepickNode, 0xD)
 
 	GET(HouseClass* const, pThis, EBP);
 
-	R->EAX(DualBuildingTemp::PickExcludingDefense(pThis));
+	R->EAX(DualBuildingTemp::PickAvailableBuildingNode(pThis));
 	return AfterRepick;
+}
+
+// Original: mov eax,[esp+10h]; mov ecx,[eax]; mov [ebp+564Ch],ecx.
+// This is AFTER native wall/defense-marker expansion and power-node insertion.
+// Ordinary buildings/upgrades replay all three instructions. Combat jobs are
+// handed to the independent slot without touching ProducingBuildingTypeIndex.
+DEFINE_HOOK(0x4FEA3C, HouseClass_AI_BuildingProduction_DispatchDefense, 0xC)
+{
+	enum { AfterDispatch = 0x4FEA48 };
+	GET(HouseClass* const, pThis, EBP);
+	GET_STACK(BaseNodeClass* const, pNode, 0x10);
+	if (!pNode || !DualBuildingTemp::UsesDefenseLine(pThis) || !DualBuildingTemp::IsDefenseLineNode(*pNode))
+		return 0;
+
+	HouseExt::Fetch(pThis)->TryStartAIDefenseProduction(*pNode);
+	return AfterDispatch;
 }

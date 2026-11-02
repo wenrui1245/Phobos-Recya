@@ -21,9 +21,14 @@ struct Fixture
 		NativeFlag = 1;
 	}
 	~Fixture() { Ext.ClearAIDefenseFactory(); }
+	void Start()
+	{
+		if (auto node = DualBuildingTemp::PickAvailableBuildingNode(&House))
+			DispatchDefenseForTest(&House, node);
+	}
 	void Ready()
 	{
-		Ext.UpdateAIDefenseProduction();
+		Start();
 		for (int i = 0; i < 3; ++i) Ext.AIDefenseFactory->Tick();
 		Check(Ext.AIDefenseFactory->Done, "production must start and advance");
 	}
@@ -89,7 +94,7 @@ int main()
 			Check(!f.Ext.AIDefenseFactory, "abandoned node must not restart");
 		}
 		{
-			Fixture f; f.Ext.UpdateAIDefenseProduction(); auto factory = f.Ext.AIDefenseFactory;
+			Fixture f; f.Start(); auto factory = f.Ext.AIDefenseFactory;
 			factory->Tick(); auto progress = factory->Progress;
 			f.Type.Builder.HasPower = false; f.Ext.UpdateAIDefenseProduction(); factory->Tick();
 			Check(factory->IsSuspended && factory->Progress == progress, "power loss suspends paid progress");
@@ -102,7 +107,7 @@ int main()
 		}
 		for (int cause = 0; cause < 3; ++cause)
 		{
-			Fixture f; f.Ext.UpdateAIDefenseProduction(); f.Ext.AIDefenseFactory->Tick();
+			Fixture f; f.Start(); f.Ext.AIDefenseFactory->Tick();
 			if (cause == 0) f.House.ConYards.Count = 0;
 			if (cause == 1) f.House.Human = true;
 			if (cause == 2) f.House.Defeated = true;
@@ -111,7 +116,7 @@ int main()
 			Check(f.House.ProducingBuildingTypeIndex == 77, "cancellation must not clear main slot");
 		}
 		{
-			Fixture f; f.Ext.UpdateAIDefenseProduction(); auto factory = f.Ext.AIDefenseFactory;
+			Fixture f; f.Start(); auto factory = f.Ext.AIDefenseFactory;
 			delete factory;
 			Check(!f.Ext.AIDefenseFactory, "external factory deletion invalidates pointer");
 			f.Ext.UpdateAIDefenseProduction();
@@ -119,12 +124,12 @@ int main()
 		}
 		{
 			Fixture f; auto foreign = new FactoryClass; foreign->Owner = &f.House;
-			f.House.Primary_ForDefenses = foreign; f.Ext.UpdateAIDefenseProduction();
+			f.House.Primary_ForDefenses = foreign; f.Start();
 			Check(!f.Ext.AIDefenseFactory && f.House.Primary_ForDefenses == foreign, "do not overwrite another defense factory");
 			delete foreign;
 		}
 		{
-			Fixture f; f.Ext.UpdateAIDefenseProduction(); auto factory = f.Ext.AIDefenseFactory;
+			Fixture f; f.Start(); auto factory = f.Ext.AIDefenseFactory;
 			HouseClass other; factory->Owner = &other;
 			f.Ext.UpdateAIDefenseProduction();
 			Check(!f.Ext.AIDefenseFactory && LiveFactories.contains(factory), "ownership change must not delete another owner's factory");
@@ -139,12 +144,12 @@ int main()
 			Check(PlaceCalls == 1 && !f.Ext.AIDefenseFactory, "restored builder places the completed product");
 		}
 		{
-			Fixture f; f.Ext.UpdateAIDefenseProduction();
+			Fixture f; f.Start();
 			f.Ext.ProducingDefenseBuildingTypeIndex = 1000; f.Ext.UpdateAIDefenseProduction();
 			Check(!f.Ext.AIDefenseFactory, "invalid type index must not access type array");
 		}
 		{
-			Fixture f; DemandSucceeds = false; f.Ext.UpdateAIDefenseProduction();
+			Fixture f; DemandSucceeds = false; f.Start();
 			Check(!f.Ext.AIDefenseFactory && f.Ext.ProducingDefenseBuildingTypeIndex == -1, "failed startup releases factory");
 		}
 		for (int skip = 0; skip < 5; ++skip)
@@ -155,17 +160,19 @@ int main()
 			if (skip == 2) f.House.Money = 0;
 			if (skip == 3) f.Type.Buildable = false;
 			if (skip == 4) f.Type.HasBuilder = false;
-			f.Ext.UpdateAIDefenseProduction(); Check(!f.Ext.AIDefenseFactory, "respect upgrades, categories, funds and native builder eligibility");
+			f.Start(); Check(!f.Ext.AIDefenseFactory, "respect upgrades, categories, funds and native builder eligibility");
 		}
 		{
 			Fixture f;
-			Check(DualBuildingTemp::PickExcludingDefense(&f.House) == nullptr, "main AI line skips defense nodes");
+			Check(DualBuildingTemp::PickAvailableBuildingNode(&f.House) != nullptr, "unclaimed defense must reach native scheduling");
+			f.Start();
+			Check(DualBuildingTemp::PickAvailableBuildingNode(&f.House) == nullptr, "native scheduler skips only the claimed defense job");
 			f.Type.Hosted = true;
-			Check(DualBuildingTemp::PickExcludingDefense(&f.House) != nullptr, "hosted upgrades remain on main line");
+			Check(DualBuildingTemp::PickAvailableBuildingNode(&f.House) != nullptr, "hosted upgrades remain on main line");
 			f.Type.Hosted = false; f.House.Human = true;
-			Check(DualBuildingTemp::PickExcludingDefense(&f.House) != nullptr, "human controller keeps original node selection");
+			Check(DualBuildingTemp::PickAvailableBuildingNode(&f.House) != nullptr, "human controller keeps original node selection");
 			f.House.Human = false; f.House.Production = false;
-			Check(DualBuildingTemp::PickExcludingDefense(&f.House) != nullptr, "disabled AI production keeps original node selection");
+			Check(DualBuildingTemp::PickAvailableBuildingNode(&f.House) != nullptr, "disabled AI production keeps original node selection");
 		}
 		{
 			Fixture f; auto& node = f.House.Base.BaseNodes.Items[0]; node.Placed = true;
@@ -174,7 +181,7 @@ int main()
 			Check(DualBuildingTemp::CanPickNode(&f.House, 0), "honor native global flag for placed nodes");
 			NativeFlag = 1; f.House.Repick = true;
 			NativeRepickCell = {30, 40};
-			f.Ext.UpdateAIDefenseProduction();
+			f.Start();
 			Check(f.Ext.AIDefenseNodeCoords == CellStruct {30, 40}, "rebuild uses native revised coordinates");
 			node.Attempts = 4;
 			for (int i = 0; i < 3; ++i) f.Ext.AIDefenseFactory->Tick();
@@ -182,7 +189,7 @@ int main()
 			Check(node.Placed && node.Attempts == 0, "successful rebuild clears old node placement failures");
 		}
 		{
-			Fixture f; f.Ext.UpdateAIDefenseProduction(); f.Ext.AIDefenseFactory->Tick();
+			Fixture f; f.Start(); f.Ext.AIDefenseFactory->Tick();
 			auto original = f.Ext.AIDefenseFactory;
 			f.Ext.AIDefensePlaceAttempts = 3; f.Ext.AIDefenseNextPlaceFrame = 120;
 			f.Ext.AIDefenseAbandonedNodes.push_back({15, 25});
@@ -203,6 +210,82 @@ int main()
 			Check(CreatedFactories == created && restored->Progress == 2, "load resumes saved progress without creating another factory");
 			loaded.ClearAIDefenseFactory();
 		}
+		{
+			// Every type is affordable/buildable. The late superweapon must be
+			// held by native plan order, not accidentally by its prerequisites.
+			Fixture f;
+			BuildingTypeClass power, tower, tech;
+			power.ArrayIndex = 1; power.BuildCat = BuildCat::DontCare;
+			tower.ArrayIndex = 2;
+			tech.ArrayIndex = 3; tech.BuildCat = BuildCat::DontCare;
+			BuildingTypeClass::Array.Add(&power); BuildingTypeClass::Array.Add(&tower); BuildingTypeClass::Array.Add(&tech);
+			f.House.Base.BaseNodes = {};
+			f.House.Base.BaseNodes.Add({1, {1, 1}});
+			f.House.Base.BaseNodes.Add({-1, {2, 2}});
+			f.House.Base.BaseNodes.Add({3, {3, 3}});
+			f.House.Base.BaseNodes.Add({0, {4, 4}}); // late Combat superweapon
+			f.Ext.UpdateAIDefenseProduction();
+			Check(!f.Ext.AIDefenseFactory, "idle defense line cannot scan ahead to a future superweapon");
+			auto node = DualBuildingTemp::PickAvailableBuildingNode(&f.House);
+			Check(node == &f.House.Base.BaseNodes.Items[0] && DispatchDefenseForTest(&f.House, node) == 0,
+				"ordinary first node keeps native dispatch");
+			f.House.Base.Built.insert(0);
+			node = DualBuildingTemp::PickAvailableBuildingNode(&f.House);
+			Check(node->BuildingTypeIndex == -1 && DispatchDefenseForTest(&f.House, node) == 0,
+				"native defense placeholder cannot be bypassed by later Combat buildings");
+			// Emulate the native AI's completed placeholder expansion, then call
+			// the actual final-dispatch body. No AI planning is duplicated here.
+			node->BuildingTypeIndex = 2;
+			Check(DispatchDefenseForTest(&f.House, node) == 0x4FEA48 && f.Ext.ProducingDefenseBuildingTypeIndex == 2,
+				"first accepted defense is the expanded native tower, not the future superweapon");
+			node = DualBuildingTemp::PickAvailableBuildingNode(&f.House);
+			Check(node->BuildingTypeIndex == 3 && DispatchDefenseForTest(&f.House, node) == 0,
+				"ordinary next building may run alongside the already accepted defense");
+			f.House.ProducingBuildingTypeIndex = 3;
+			for (int i = 0; i < 3; ++i) f.Ext.AIDefenseFactory->Tick();
+			f.Ext.UpdateAIDefenseProduction();
+			Check(!f.Ext.AIDefenseFactory && f.House.ProducingBuildingTypeIndex == 3,
+				"finishing the tower preserves the ordinary line");
+			Unsorted::CurrentFrame = 60; f.Ext.UpdateAIDefenseProduction();
+			Check(!f.Ext.AIDefenseFactory, "empty defense slot does not refill itself while native main job is active");
+			f.House.Base.Built.insert(2); f.House.ProducingBuildingTypeIndex = -1;
+			node = DualBuildingTemp::PickAvailableBuildingNode(&f.House);
+			Check(node->BuildingTypeIndex == 0 && DispatchDefenseForTest(&f.House, node) == 0x4FEA48
+				&& f.Ext.ProducingDefenseBuildingTypeIndex == 0, "superweapon remains permitted when native plan actually reaches it");
+		}
+		for (int sentinel : {-1, -2, -3})
+		{
+			Fixture f;
+			f.House.Base.BaseNodes.Items.insert(f.House.Base.BaseNodes.Items.begin(), {sentinel, {1, 1}});
+			++f.House.Base.BaseNodes.Count;
+			f.Ext.UpdateAIDefenseProduction();
+			Check(!f.Ext.AIDefenseFactory, "native sentinel must not be crossed by an independent scan");
+			auto node = DualBuildingTemp::PickAvailableBuildingNode(&f.House);
+			Check(node->BuildingTypeIndex == sentinel && DispatchDefenseForTest(&f.House, node) == 0,
+				"native wall, stop and defense nodes retain original handling");
+		}
+		{
+			Fixture f;
+			f.House.Base.BaseNodes.Add({0, {30, 40}});
+			f.Start(); auto first = f.Ext.AIDefenseFactory;
+			auto second = DualBuildingTemp::PickAvailableBuildingNode(&f.House);
+			Check(second && second->MapCoords == CellStruct {30, 40}, "claim skips only matching type AND coordinates");
+			Check(DispatchDefenseForTest(&f.House, second) == 0x4FEA48 && f.Ext.AIDefenseFactory == first
+				&& f.Ext.AIDefenseNodeCoords == CellStruct {10, 20}, "busy defense slot cannot be overwritten by another native job");
+		}
+		{
+			Fixture f; BuildingTypeClass cheaper;
+			cheaper.ArrayIndex = 1; cheaper.Cost = 1;
+			BuildingTypeClass::Array.Add(&cheaper); f.House.Base.BaseNodes.Add({1, {30, 40}});
+			f.Type.Cost = 20000; f.Start();
+			Check(!f.Ext.AIDefenseFactory && f.Ext.ProducingDefenseBuildingTypeIndex == -1,
+				"insufficient money for current native defense cannot pick a cheaper future node");
+			Check(DualBuildingTemp::PickAvailableBuildingNode(&f.House)->BuildingTypeIndex == 0,
+				"unstarted native defense stays at the head of the plan");
+			f.House.Money = 30000; Unsorted::CurrentFrame = 30; f.Start();
+			Check(f.Ext.ProducingDefenseBuildingTypeIndex == 0, "native head job starts when affordable");
+		}
+		Check(DispatchDefenseForTest(nullptr, nullptr) == 0, "null node keeps native path without dereferencing house");
 		Check(LiveFactories.empty() && CreatedFactories == DeletedFactories, "all factories released exactly once");
 		for (auto product : PlacedObjects) delete product;
 		std::printf("PASS: %d controller/dispatch/stream checks (fake engine; no game launched).\n", Checks);

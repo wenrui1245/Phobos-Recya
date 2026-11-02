@@ -108,7 +108,9 @@ struct HouseExt
 	explicit HouseExt(HouseClass* h) : House(h) { h->Ext = this; }
 	HouseClass* OwnerObject() const { return House; }
 	static HouseExt* TryFetch(HouseClass* h) { return h ? h->Ext : nullptr; }
+	static HouseExt* Fetch(HouseClass* h) { return TryFetch(h); }
 	void UpdateAIDefenseProduction();
+	bool TryStartAIDefenseProduction(const BaseNodeClass& node);
 	void ClearAIDefenseFactory();
 	void MarkAIDefenseNodePlaced();
 	void OnDetach(FactoryClass*, bool);

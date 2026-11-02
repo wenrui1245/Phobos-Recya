@@ -86,6 +86,7 @@ public:
 	std::vector<CellStruct> AIDefenseAbandonedNodes;
 
 	void UpdateAIDefenseProduction();
+	bool TryStartAIDefenseProduction(const BaseNodeClass& node);
 	void ClearAIDefenseFactory();
 	void MarkAIDefenseNodePlaced();
 
