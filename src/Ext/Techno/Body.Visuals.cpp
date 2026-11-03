@@ -1954,12 +1954,22 @@ void TechnoExt::DrawCameos(TechnoClass* pThis)
 		: pRulesExt->ShowCameo_Translucency;
 	const BlitterFlags translucencyFlag = translucency.GetBlitterFlags();
 
-	// For buildings, draw in reverse so that visual top (earlier-entered) covers visual bottom.
-	// This is needed because Y flip reverses the visual order but overlap calculation
-	// still follows the original cameoCounts (bottom-to-top) order.
-	int idx = (whatAmI == AbstractType::Building) ? count - 1 : 0;
-	const int idxEnd = (whatAmI == AbstractType::Building) ? -1 : count;
-	const int idxStep = (whatAmI == AbstractType::Building) ? -1 : 1;
+	// Draw order decides which cameo covers which at the overlap region:
+	// overlapPrimary=true: primary (earlier) covers secondary (later) → draw earlier last
+	// overlapPrimary=false: secondary (later) covers primary (earlier) → draw later last
+	// This applies uniformly to vehicles and buildings (buildings have Y-flipped
+	// positions, but coverage only depends on the draw sequence).
+	int idx = 0;
+	int idxEnd = count;
+	int idxStep = 1;
+
+	if (overlapPrimary)
+	{
+		idx = count - 1;
+		idxEnd = -1;
+		idxStep = -1;
+	}
+
 	for (; idx != idxEnd; idx += idxStep)
 	{
 		const auto& item = cameoCounts[idx];
