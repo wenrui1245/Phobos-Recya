@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -24,7 +24,12 @@ enum class CanBuildResult { TemporarilyUnbuildable = -1, Unbuildable, Buildable 
 struct FactoryClass;
 struct HouseExt;
 struct BuildingTypeClass;
-struct BuildingClass { bool Deactivated = false, HasPower = true; };
+enum class Mission {Guard,Selling};
+inline bool HostCompatible=true;
+struct BuildingClass { bool Deactivated=false,HasPower=true,IsAlive=true,IsOnMap=true,InLimbo=false;int Health=100;Mission CurrentMission=Mission::Guard;
+ CellStruct Location{30,40};bool CanUpgradeBuilding(const BuildingTypeClass*,const struct HouseClass*)const{return HostCompatible;}
+ CellStruct GetMapCoords()const{return Location;}
+};
 struct BaseNodeClass
 {
 	int BuildingTypeIndex = 0;
@@ -45,6 +50,7 @@ struct BuildingTypeClass
 	inline static FakeArray<BuildingTypeClass*> Array;
 	BuildCat BuildCat = BuildCat::Combat;
 	int ArrayIndex = 0;
+ char PowersUpBuilding[24]{};
 	bool Naval = false, Hosted = false, Buildable = true, HasBuilder = true;
 	int Cost = 300;
 	BuildingClass Builder;
@@ -79,6 +85,7 @@ struct HouseClass
 	bool Human = false, Defeated = false, Production = true, Repick = false;
 	FakeArray<int> ConYards;
 	BaseClass Base;
+ std::vector<BuildingClass*> Buildings;
 	FactoryClass* Primary_ForDefenses = nullptr;
 	int ProducingBuildingTypeIndex = 77;
 	int Money = 10000;
@@ -107,6 +114,7 @@ struct HouseExt
 	int ProducingNavalUnitTypeIndex = 9;
 	explicit HouseExt(HouseClass* h) : House(h) { h->Ext = this; }
 	HouseClass* OwnerObject() const { return House; }
+ std::set<BuildingClass*> LimboBuildings;bool OwnsLimboDeliveredBuilding(BuildingClass* b)const{return LimboBuildings.contains(b);}
 	static HouseExt* TryFetch(HouseClass* h) { return h ? h->Ext : nullptr; }
 	static HouseExt* Fetch(HouseClass* h) { return TryFetch(h); }
 	void UpdateAIDefenseProduction();

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Utilities/Macro.h"
 
@@ -8,7 +8,7 @@
 // ============================================================================
 
 #define INTEROP_API_VERSION_MAJOR 1
-#define INTEROP_API_VERSION_MINOR 3
+#define INTEROP_API_VERSION_MINOR 4
 #define INTEROP_API_VERSION_PATCH 0
 
 /// <summary>
@@ -52,3 +52,7 @@ class SuperWeaponTypeClass;
 // Availability: [1.3.0, 0). S_OK writes BOOL; failures never report available.
 DEFINE_EXPORT(HRESULT, Phobos_QuerySuperWeaponAvailability,
  HouseClass* house, SuperWeaponTypeClass* type, BOOL* available);
+
+class BuildingTypeClass;
+// Availability: [1.4.0, 0). S_OK consumed; S_FALSE retry; failures do not grant a superweapon.
+DEFINE_EXPORT(HRESULT, Phobos_DeliverProtocolBuilding, HouseClass*, BuildingTypeClass*, BOOL, int);

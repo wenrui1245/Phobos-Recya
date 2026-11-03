@@ -19,10 +19,17 @@ namespace DualBuildingTemp
 	// UnitFromFactory is also the native Place-event handler. The YRpp declaration
 	// discards its bool return. Verified at 0x4FB512 (AL = success, ret 0x10),
 	// with a false return at 0x4FB5BA. Use that result, not a possibly freed factory.
+	inline bool IsHostedUpgradeType(BuildingTypeClass*);
+	inline BuildingClass* FindUpgradeHost(HouseClass*,BuildingTypeClass*);
 	inline bool PlaceDefense(HouseClass* pHouse, BuildingTypeClass* pType, const CellStruct& coords)
 	{
+		auto location=coords;
+		if(IsHostedUpgradeType(pType)) {
+			auto* host=FindUpgradeHost(pHouse,pType);if(!host)return false;
+			location=host->GetMapCoords();
+		}
 		return reinterpret_cast<bool(__thiscall*)(HouseClass*, AbstractType, int, bool, const CellStruct*)>(0x4FB0E0)
-			(pHouse, AbstractType::Building, pType->ArrayIndex, pType->Naval, &coords);
+			(pHouse, AbstractType::Building, pType->ArrayIndex, pType->Naval, &location);
 	}
 
 	inline bool UsesDefenseLine(HouseClass* pHouse)
@@ -46,17 +53,24 @@ namespace DualBuildingTemp
 		return true;
 	}
 
-	// 挂接式升级/插件类型（PowersUp 系列，需要宿主建筑）不归防御产线：它们
-	// 依赖宿主存在才能放置，由原版主产线的升级放置流程处理
 	inline bool IsHostedUpgradeType(BuildingTypeClass* pType)
 	{
-		return !BuildingTypeExt::Fetch(pType)->PowersUp_Buildings.empty();
+		return pType->PowersUpBuilding[0] || !BuildingTypeExt::Fetch(pType)->PowersUp_Buildings.empty();
 	}
-
-	// 由防御产线承接的类型：BuildCat=Combat 且非挂接式
+	// Match native/host upgrade placement eligibility instead of treating the
+	// upgrade's base-plan coordinates as an empty foundation to build on.
+	inline BuildingClass* FindUpgradeHost(HouseClass* house,BuildingTypeClass* type)
+	{
+		for(auto* host:house->Buildings)
+			if(host && host->IsAlive && host->Health>0 && host->IsOnMap && !host->InLimbo
+ && !HouseExt::Fetch(house)->OwnsLimboDeliveredBuilding(host)
+ && host->CanUpgradeBuilding(type,house) && host->GetMapCoords()!=CellStruct::Empty
+				&& host->CurrentMission!=Mission::Selling)return host;
+		return nullptr;
+	}
 	inline bool IsDefenseLineType(BuildingTypeClass* pType)
 	{
-		return pType->BuildCat == BuildCat::Combat && !IsHostedUpgradeType(pType);
+		return pType->BuildCat == BuildCat::Combat;
 	}
 
 	inline bool IsDefenseLineNode(const BaseNodeClass& node)
@@ -214,6 +228,7 @@ bool HouseExt::TryStartAIDefenseProduction(const BaseNodeClass& node)
 	}
 
 	auto const pType = BuildingTypeClass::Array.GetItem(node.BuildingTypeIndex);
+ if(DualBuildingTemp::IsHostedUpgradeType(pType) && !DualBuildingTemp::FindUpgradeHost(pThis,pType))return false;
 	if (pThis->CanBuild(pType, false, false) == CanBuildResult::Unbuildable)
 		return false;
 
@@ -332,7 +347,7 @@ DEFINE_HOOK(0x4FE493, HouseClass_AI_BuildingProduction_RepickNode, 0xD)
 
 // Original: mov eax,[esp+10h]; mov ecx,[eax]; mov [ebp+564Ch],ecx.
 // This is AFTER native wall/defense-marker expansion and power-node insertion.
-// Ordinary buildings/upgrades replay all three instructions. Combat jobs are
+// Non-Combat buildings/upgrades replay all three instructions. Combat jobs are
 // handed to the independent slot without touching ProducingBuildingTypeIndex.
 DEFINE_HOOK(0x4FEA3C, HouseClass_AI_BuildingProduction_DispatchDefense, 0xC)
 {

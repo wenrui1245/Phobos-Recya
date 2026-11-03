@@ -104,7 +104,7 @@ DEFINE_HOOK(0x4CA0A1, FactoryClass_Abandon_NavalProductionFix, 0x5)
 	{
 		// The native building branch at 0x4CA0DA clears the MAIN building slot.
 		// Keep refunds and product destruction, skipping only the unrelated slots.
-		if (pHouseExt->AIDefenseFactory == pThis)
+		if (pHouseExt->AIDefenseFactory == pThis || pThis->Owner->Primary_ForDefenses == pThis)
 			return 0x4CA0E3;
 	}
 

@@ -133,7 +133,7 @@ DEFINE_HOOK(0x4CA07A, FactoryClass_AbandonProduction_Phobos, 0x8)
 	// product must not release the main building line's selected construction yard.
 	if (auto const pHouseExt = HouseExt::TryFetch(pFactory->Owner))
 	{
-		if (pHouseExt->AIDefenseFactory == pFactory)
+		if (pHouseExt->AIDefenseFactory == pFactory || pFactory->Owner->Primary_ForDefenses == pFactory)
 			return 0;
 	}
 

@@ -1,4 +1,4 @@
-inline int Checks = 0;
+﻿inline int Checks = 0;
 inline void Check(bool ok, const char* name)
 {
 	if (!ok) throw std::runtime_error(name);
@@ -152,10 +152,19 @@ int main()
 			Fixture f; DemandSucceeds = false; f.Start();
 			Check(!f.Ext.AIDefenseFactory && f.Ext.ProducingDefenseBuildingTypeIndex == -1, "failed startup releases factory");
 		}
+		{
+			Fixture f;f.Type.Hosted=true;BuildingClass host;f.House.Buildings.push_back(&host);HostCompatible=false;
+			f.Start();Check(!f.Ext.AIDefenseFactory,"incompatible host must not create paid work");HostCompatible=true;
+			f.Ext.LimboBuildings.insert(&host);f.Start();Check(!f.Ext.AIDefenseFactory,"hidden limbo host is not a placement location");f.Ext.LimboBuildings.clear();
+ f.Ready();Check(f.House.Primary_ForDefenses==f.Ext.AIDefenseFactory,"Combat upgrade must occupy defense queue");
+			f.Ext.UpdateAIDefenseProduction();Check(PlacedAt==host.Location,"upgrade placement must use compatible host coordinates");
+			Check(f.House.ProducingBuildingTypeIndex==77&&!f.Ext.AIDefenseFactory,"upgrade completion preserves ordinary line");
+		}
+		{ Fixture f;auto* external=new FactoryClass;external->Owner=&f.House;external->Object=new TechnoClass{&f.Type};f.House.Primary_ForDefenses=external;external->Paid=20;const int before=f.House.Money;external->AbandonProduction();Check(f.House.ProducingBuildingTypeIndex==77,"external defense cancellation preserves main selection" );Check(f.House.Money==before+20,"external defense cancellation retains refund" );delete external;}
 		for (int skip = 0; skip < 5; ++skip)
 		{
 			Fixture f;
-			if (skip == 0) f.Type.Hosted = true;
+			if (skip == 0) f.Type.Hosted = true; // No compatible host: reject without charging.
 			if (skip == 1) f.Type.BuildCat = BuildCat::DontCare;
 			if (skip == 2) f.House.Money = 0;
 			if (skip == 3) f.Type.Buildable = false;
@@ -168,7 +177,7 @@ int main()
 			f.Start();
 			Check(DualBuildingTemp::PickAvailableBuildingNode(&f.House) == nullptr, "native scheduler skips only the claimed defense job");
 			f.Type.Hosted = true;
-			Check(DualBuildingTemp::PickAvailableBuildingNode(&f.House) != nullptr, "hosted upgrades remain on main line");
+			Check(DualBuildingTemp::PickAvailableBuildingNode(&f.House) == nullptr, "claimed Combat upgrades remain on defense line");
 			f.Type.Hosted = false; f.House.Human = true;
 			Check(DualBuildingTemp::PickAvailableBuildingNode(&f.House) != nullptr, "human controller keeps original node selection");
 			f.House.Human = false; f.House.Production = false;
