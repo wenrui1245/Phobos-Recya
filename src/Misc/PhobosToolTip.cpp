@@ -279,24 +279,9 @@ bool PhobosToolTip::HelpText_Object(ObjectClass* pObject, const wchar_t* pUIName
 
 // Hooks
 
-// 悬浮物 tooltip：在原版名称末尾追加载员清单（ToolTip.Cargo）
-// 0x4AE670 处原版指令为 mov edx,[ecx] + call [edx+0x90]（取悬浮物 UIName 并直接作为 tooltip 文本），
-// 此处整段接管后自行完成同样的虚函数调用，再按需追加载员信息
-DEFINE_HOOK(0x4AE670, DisplayClass_HelpText_AppendCargo, 0x5)
-{
-	GET(ObjectClass*, pObject, ECX);
-
-	// 复刻被跳过的原版虚函数调用（vtable+0x90）
-	auto const pUIName = reinterpret_cast<const wchar_t* (__thiscall*)(ObjectClass*)>(
-		(*reinterpret_cast<void***>(pObject))[0x90 / 4])(pObject);
-
-	if (Phobos::Config::ToolTipCargo && PhobosToolTip::Instance.HelpText_Object(pObject, pUIName))
-		R->EAX(PhobosToolTip::Instance.GetBuffer());
-	else
-		R->EAX(pUIName);
-
-	return 0x4AE678;
-}
+// 悬浮物 tooltip 的载员追加逻辑在 Ext/TechnoType/Hooks.cpp 的
+// DisplayClass_GetToolTip_EnemyUIName（0x4AE670）钩子中完成——该地址已被
+// EnemyUIName 功能占用，此处不能重复注册同地址钩子（会被链式注册吞掉）。
 
 DEFINE_HOOK(0x6A9316, SidebarClass_StripClass_HelpText, 0x6)
 {

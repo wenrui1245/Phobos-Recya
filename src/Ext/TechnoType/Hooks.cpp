@@ -2,6 +2,7 @@
 #include <Ext/Techno/Body.h>
 #include <Ext/AnimType/Body.h>
 #include <Ext/UnitType/Body.h>
+#include <Misc/PhobosToolTip.h>
 
 DEFINE_HOOK(0x73D223, UnitClass_DrawIt_OreGath, 0x6)
 {
@@ -92,6 +93,11 @@ DEFINE_HOOK(0x4AE670, DisplayClass_GetToolTip_EnemyUIName, 0x8)
 	}
 
 	R->EAX(pDecidedUIName);
+
+	// 悬浮载员提示：在最终名称末尾追加载员清单（ToolTip.Cargo）
+	if (Phobos::Config::ToolTipCargo && PhobosToolTip::Instance.HelpText_Object(pObject, pDecidedUIName))
+		R->EAX(PhobosToolTip::Instance.GetBuffer());
+
 	return SetUIName;
 }
 
