@@ -1707,7 +1707,9 @@ DEFINE_HOOK(0x4D9992, FootClass_PointerGotInvalid, 0x7)
 
 	auto const pExt = FootExt::Fetch(pThis);
 
-	if (removed)
+	// 游戏退出清理时扩展容器可能已先于对象析构被清空，Fetch 会返回空指针，
+	// 此时放弃本钩子的全部扩展逻辑，交还原版流程处理指针失效
+	if (removed && pExt)
 	{
 		if (pExt->ImmobilizedSuspendedTarget == pAbstract)
 			pExt->ImmobilizedSuspendedTarget = nullptr;
@@ -1721,6 +1723,9 @@ DEFINE_HOOK(0x4D9992, FootClass_PointerGotInvalid, 0x7)
 		pThis->ParasiteEatingMe = nullptr;
 		return SkipGameCode;
 	}
+
+	if (!pExt)
+		return 0;
 
 	if (!removed)
 	{
