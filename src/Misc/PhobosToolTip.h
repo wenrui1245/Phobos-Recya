@@ -24,6 +24,7 @@ public:
 	void HelpText(BuildType& cameo);
 	void HelpText_Techno(TechnoTypeClass* pType);
 	void HelpText_Super(int swidx);
+	bool HelpText_Object(ObjectClass* pObject, const wchar_t* pUIName);
 
 	// Properties
 private:

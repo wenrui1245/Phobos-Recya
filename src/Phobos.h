@@ -177,6 +177,7 @@ public:
 		static bool DevelopmentCommands;
 		static bool DamageNumbersCommand;
 		static bool ShowCameo_Enable;
+		static bool ToolTipCargo;
 	};
 
 	class Misc
