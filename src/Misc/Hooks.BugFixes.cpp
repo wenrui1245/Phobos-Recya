@@ -1,4 +1,4 @@
-﻿#include <AircraftTrackerClass.h>
+#include <AircraftTrackerClass.h>
 #include <EventClass.h>
 #include <HoverLocomotionClass.h>
 #include <JumpjetLocomotionClass.h>
@@ -11,6 +11,9 @@
 #include <Ext/SWType/Body.h>
 #include <Ext/WarheadType/Body.h>
 #include <Ext/Cell/Body.h>
+
+#include <Utilities/AresHelper.h>
+#include <Utilities/AresFunctions.h>
 
 /*
 	Allow usage of TileSet of 255 and above without making NE-SW broken bridges unrepairable
@@ -76,7 +79,7 @@ DEFINE_HOOK(0x4D7431, FootClass_ReceiveDamage_DyingFix, 0x5)
 	GET(FootClass*, pThis, ESI);
 	GET(const DamageState, result, EAX);
 
-	if (result != DamageState::PostMortem && (pThis->IsSinking || (pThis->IsCrashing && !pThis->IsAttackedByLocomotor)))
+	if (result != DamageState::PostMortem && (pThis->IsSinking || (!pThis->IsAttackedByLocomotor && pThis->IsCrashing)))
 		R->EAX(DamageState::PostMortem);
 
 	return 0;
@@ -176,7 +179,7 @@ DEFINE_HOOK(0x702299, TechnoClass_ReceiveDamage_Debris, 0xA)
 				int amountToSpawn = Math::min(totalSpawnAmount, ScenarioClass::Instance->Random.RandomRanged(currentMinDebris, currentMaxDebris));
 				totalSpawnAmount -= amountToSpawn;
 
-				for ( ; amountToSpawn > 0; --amountToSpawn)
+				for (; amountToSpawn > 0; --amountToSpawn)
 					GameCreate<VoxelAnimClass>(debrisTypes[currentIndex], &coord, pOwner);
 
 				if (totalSpawnAmount <= 0)
@@ -290,6 +293,14 @@ DEFINE_HOOK(0x4438B4, BuildingClass_SetRallyPoint_Naval, 0x6)
 		return IsNaval;
 
 	return NotNaval;
+}
+
+DEFINE_HOOK(0x6DAAB2, TacticalClass_DrawRallyPointLines_NoUndeployBlyat, 0x6)
+{
+	GET(BuildingClass*, pBld, EDI);
+	if (pBld->ArchiveTarget && pBld->CurrentMission != Mission::Selling)
+		return 0x6DAAC0;
+	return 0x6DAD45;
 }
 
 // bugfix: DeathWeapon not properly detonates
@@ -806,7 +817,7 @@ DEFINE_HOOK(0x6D9781, Tactical_RenderLayers_DrawInfoTipAndSpiedSelection, 0x5)
 	if (pBuilding->IsSelected && pBuilding->IsOnMap && pBuilding->WhatAmI() == AbstractType::Building)
 	{
 		const auto pType = pBuilding->Type;
-		const int foundationHeight = pType->GetFoundationHeight(false);
+		const int foundationHeight = pType->GetFoundationHeight(0);
 		const int typeHeight = pType->Height;
 		const int yOffest = (Unsorted::CellHeightInPixels * (foundationHeight + typeHeight)) >> 2;
 
@@ -821,7 +832,8 @@ DEFINE_HOOK(0x6D9781, Tactical_RenderLayers_DrawInfoTipAndSpiedSelection, 0x5)
 static bool __fastcall BuildingClass_SetOwningHouse_Wrapper(BuildingClass* pThis, void*, HouseClass* pHouse, bool announce)
 {
 	// Fix : Suppress capture EVA event if ConsideredVehicle=yes
-	if(announce) announce = !pThis->IsStrange();
+	if (announce)
+		announce = !pThis->IsStrange();
 
 	const bool res = reinterpret_cast<bool(__thiscall*)(BuildingClass*, HouseClass*, bool)>(0x448260)(pThis, pHouse, announce);
 
@@ -839,7 +851,7 @@ static bool __fastcall BuildingClass_SetOwningHouse_Wrapper(BuildingClass* pThis
 DEFINE_FUNCTION_JUMP(VTABLE, 0x7E4290, BuildingClass_SetOwningHouse_Wrapper);
 DEFINE_JUMP(LJMP, 0x6E0BD4, 0x6E0BFE);
 DEFINE_JUMP(LJMP, 0x6E0C1D, 0x6E0C8B);//Simplify TAction 36
-/*
+
 // Fix a glitch related to incorrect target setting for missiles
 // Author: Belonit
 DEFINE_HOOK(0x6B75AC, SpawnManagerClass_AI_SetDestinationForMissiles, 0x5)
@@ -864,7 +876,7 @@ DEFINE_HOOK(0x6B75AC, SpawnManagerClass_AI_SetDestinationForMissiles, 0x5)
 
 	return 0x6B75BC;
 }
-*/
+
 DEFINE_HOOK(0x689EB0, ScenarioClass_ReadMap_SkipHeaderInCampaign, 0x6)
 {
 	return SessionClass::IsCampaign() ? 0x689FC0 : 0;
@@ -984,7 +996,7 @@ DEFINE_HOOK(0x72958E, TunnelLocomotionClass_ProcessDigging_SlowdownDistance, 0x8
 	auto const pLinkedTo = pLoco->LinkedTo;
 	auto& currLoc = pLinkedTo->Location;
 	const auto coords = pLoco->Coords;
-	const int distance = (int) CoordStruct{currLoc.X - coords.X, currLoc.Y - coords.Y,0}.Magnitude() ;
+	const int distance = (int)CoordStruct { currLoc.X - coords.X, currLoc.Y - coords.Y,0 }.Magnitude();
 
 	// Nov 27, 2024 - Starkku: The movement speed was actually also hardcoded here to 19, so the distance check made sense
 	// It can now be customized globally or per TechnoType however
@@ -1003,7 +1015,7 @@ DEFINE_HOOK(0x72958E, TunnelLocomotionClass_ProcessDigging_SlowdownDistance, 0x8
 	{
 		REF_STACK(CoordStruct, newLoc, STACK_OFFSET(0x40, -0xC));
 		const double angle = -Math::atan2(currLoc.Y - coords.Y, coords.X - currLoc.X);
-		newLoc = currLoc + CoordStruct { int((double)speed * Math::cos(angle)), int((double)speed * Math::sin(angle)), 0 };
+		newLoc = currLoc + CoordStruct { int((double)speed* Math::cos(angle)), int((double)speed* Math::sin(angle)), 0 };
 		return 0x7298D3;
 	}
 	return 0x7295CE;
@@ -1400,7 +1412,7 @@ DEFINE_HOOK(0x4D77BD, FootClass_ObjectClickedAction_NoMove, 0x6)
 
 #pragma region JumpjetShadowPointFix
 
-static Point2D *__stdcall JumpjetLoco_ILoco_Shadow_Point(ILocomotion * iloco, Point2D *pPoint)
+static Point2D* __stdcall JumpjetLoco_ILoco_Shadow_Point(ILocomotion* iloco, Point2D* pPoint)
 {
 	__assume(iloco != nullptr);
 	const auto pLoco = static_cast<JumpjetLocomotionClass*>(iloco);
@@ -1490,7 +1502,7 @@ DEFINE_HOOK_AGAIN(0x69F05D, EndPiggyback_PowerOn, 0x7) // Ship
 DEFINE_HOOK(0x719F17, EndPiggyback_PowerOn, 0x5) // Teleport
 {
 	auto* iloco = R->Origin() == 0x719F17 ? R->ECX<ILocomotion*>() : R->EAX<ILocomotion*>();
-	__assume(iloco!=nullptr);
+	__assume(iloco != nullptr);
 	const auto pLinkedTo = static_cast<LocomotionClass*>(iloco)->LinkedTo;
 	if (!pLinkedTo->Deactivated && !pLinkedTo->IsUnderEMP())
 		iloco->Power_On();
@@ -1508,41 +1520,6 @@ static size_t __fastcall HexStr2Int_replacement(const char* str)
 
 DEFINE_FUNCTION_JUMP(CALL, 0x6E8305, HexStr2Int_replacement); // TaskForce
 DEFINE_FUNCTION_JUMP(CALL, 0x6E5FA6, HexStr2Int_replacement); // TagType
-
-// In theory, a projectile with Inviso=yes should detonate at the center of the target the next frame after firing, assuming it is not intercepted.
-// In fact, when the target is moving at high speed, the projectile may have to delay multiple frames to hit, or even fail and hit the ground.
-// I didn't study the specific reasons for this, but this hook does solve the problem.
-// Netsu_Negi told me this method, and I verified it.
-DEFINE_HOOK(0x467C1C, BulletClass_Update_InvisoLatencyFix, 0x6)
-{
-	GET(BulletTypeClass*, pType, EAX);
-	R->CL(RulesExt::Global()->InvisoLatencyFix ? (pType->Inviso || pType->Ranged) : pType->Ranged);
-	return 0x467C22;
-}
-
-namespace InvisoBlockageFix
-{
-	CoordStruct srcCrd = { 0, 0, 0 };
-}
-
-DEFINE_HOOK(0x468670, BulletClass_Unlimbo_Start_InvisoBlockageFix, 0x6)
-{
-	GET_STACK(int, returnAddress, 0);
-	GET(BulletClass*, pThis, ECX);
-
-	if (!RulesExt::Global()->InvisoBlockageFix || returnAddress != 0x6FF01A || !pThis->Type->Inviso)
-		return 0;
-
-	REF_STACK(CoordStruct*, pSrcCrd, 0x4);
-
-	if (auto pTechno = pThis->Owner)
-	{
-		InvisoBlockageFix::srcCrd = pTechno->GetCoords();
-		pSrcCrd = &InvisoBlockageFix::srcCrd;
-	}
-
-	return 0;
-}
 
 #define Hook_AIPlayerLogFix(addr, mode, size, reg1, reg2) \
 DEFINE_HOOK(addr, ##mode##_AIPlayerLogFix, size) \
@@ -2032,31 +2009,78 @@ DEFINE_HOOK(0x46B23C, BulletClass_DrawVoxel_SetLightConvert2, 0x6)
 // These functions should consider reachablity.
 DEFINE_HOOK(0x4DFC39, FootClass_FindBioReactor_CheckValid, 0x6)
 {
+	enum { SkipGameCode = 0x4DFC3F };
+
 	GET(FootClass*, pThis, ESI);
 	GET(BuildingClass*, pBuilding, EDI);
-	return pThis->IsInSameZoneAs(pBuilding) ? 0 : 0x4DFC3F;
+
+	const auto pBuildingType = pBuilding->Type;
+	const auto RulesExt = RulesExt::Global();
+
+	if (TechnoTypeExt::Fetch(pBuildingType)->NoQueueUpToEnter.Get(
+		RulesExt->NoQueueUpToEnter_Buildings.Get(RulesExt->NoQueueUpToEnter)))
+	{
+		if (pBuildingType->Grinding)
+			return SkipGameCode;
+
+		const auto pTunnel = AresHelper::CanUseAres
+			? AresFunctions::GetTunnel(reinterpret_cast<void*>(pBuildingType->align_E24), pBuilding->Owner) : nullptr;
+
+		if (pTunnel)
+			return SkipGameCode;
+	}
+
+	return pThis->IsInSameZoneAs(pBuilding) ? 0 : SkipGameCode;
 }
 
 DEFINE_HOOK(0x4DFED2, FootClass_FindGarrisonStructure_CheckValid, 0x6)
 {
 	GET(FootClass*, pThis, ESI);
 	GET(BuildingClass*, pBuilding, EBX);
-	return pThis->IsInSameZoneAs(pBuilding) ? 0 : 0x4DFED8;
+
+	return pThis->IsInSameZoneAs(pBuilding) ? 0 : R->Origin() + 0x6;
 }
 
 DEFINE_HOOK(0x4E0024, FootClass_FindTankBunker_CheckValid, 0x8)
 {
 	GET(FootClass*, pThis, EDI);
 	GET(BuildingClass*, pBuilding, ESI);
-	return pThis->IsInSameZoneAs(pBuilding) ? 0 : 0x4E002C;
+
+	return pThis->IsInSameZoneAs(pBuilding) ? 0 : R->Origin() + 0x8;
 }
 
-DEFINE_HOOK_AGAIN(0x4DFB28, FootClass_FindXXX_CheckValid, 0x8) // FindGrinder
-DEFINE_HOOK(0x4DFD92, FootClass_FindXXX_CheckValid, 0x8) // FindBattleBunker
+DEFINE_HOOK(0x4DFD92, FootClass_FindBattleBunker_CheckValid, 0x8)
 {
 	GET(FootClass*, pThis, ESI);
 	GET(BuildingClass*, pBuilding, EBX);
+
 	return pThis->IsInSameZoneAs(pBuilding) ? 0 : R->Origin() + 0x8;
+}
+
+DEFINE_HOOK(0x4DFB28, FootClass_FindGrinder_CheckValid, 0x8)
+{
+	enum { SkipGameCode = 0x4DFB30 };
+
+	GET(FootClass*, pThis, ESI);
+	GET(BuildingClass*, pBuilding, EBX);
+
+	const auto pBuildingType = pBuilding->Type;
+	const auto RulesExt = RulesExt::Global();
+
+	if (TechnoTypeExt::Fetch(pBuildingType)->NoQueueUpToEnter.Get(
+		RulesExt->NoQueueUpToEnter_Buildings.Get(RulesExt->NoQueueUpToEnter)))
+	{
+		if (pBuildingType->Passengers > 0)
+			return SkipGameCode;
+
+		const auto pTunnel = AresHelper::CanUseAres
+			? AresFunctions::GetTunnel(reinterpret_cast<void*>(pBuildingType->align_E24), pBuilding->Owner) : nullptr;
+
+		if (pTunnel)
+			return SkipGameCode;
+	}
+
+	return pThis->IsInSameZoneAs(pBuilding) ? 0 : SkipGameCode;
 }
 
 #pragma endregion
@@ -2247,8 +2271,7 @@ DEFINE_HOOK(0x481778, CellClass_ScatterContent_Scatter, 0x6)
 	GET_STACK(const bool, ignoreMission, STACK_OFFSET(0x2C, 0x8));
 	GET_STACK(const bool, ignoreDestination, STACK_OFFSET(0x2C, 0xC));
 
-	if (ignoreDestination
-		|| pTechno->HasAbility(Ability::Scatter)
+	if (ignoreDestination || pTechno->HasAbility(Ability::Scatter)
 		|| (pTechno->Owner->IsControlledByHuman()
 			? RulesClass::Instance->PlayerScatter
 			: pTechno->Owner->IQLevel2 >= RulesClass::Instance->Scatter))
@@ -2278,10 +2301,14 @@ DEFINE_HOOK(0x4D6F66, FootClass_ElectricAssultFix_SetWeaponType, 0x6)		// Missio
 DEFINE_HOOK_AGAIN(0x4D5184, FootClass_ElectricAssultFix2, 0x7)	// Mission_Guard
 DEFINE_HOOK(0x4D6FE1, FootClass_ElectricAssultFix2, 0x7)		// Mission_AreaGuard
 {
+	enum
+	{
+		SkipGuard = 0x4D51AE, ContinueGuard = 0x4D5198,
+		SkipAreaGuard = 0x4D7001, ContinueAreaGuard = 0x4D6FF5
+	};
+
 	GET(FootClass*, pThis, ESI);
 	GET(BuildingClass*, pBuilding, EDI);
-	enum { SkipGuard = 0x4D51AE, ContinueGuard = 0x4D5198,
-		SkipAreaGuard = 0x4D7001, ContinueAreaGuard = 0x4D6FF5 };
 
 	const auto pWeapon = ElectricAssultTemp::WeaponType;
 	const bool InGuard = (R->Origin() == 0x4D5184);
@@ -2303,12 +2330,6 @@ DEFINE_HOOK(0x489416, MapClass_DamageArea_AirDamageSelfFix, 0x6)
 
 	GET(TechnoClass*, pAirTechno, EBX);
 	GET_BASE(TechnoClass*, pSourceTechno, 0x8);
-	GET_BASE(WarheadTypeClass*, pWarhead, 0xC);
-
-	auto const pWHExt = WarheadTypeExt::Fetch(pWarhead);
-
-	if (pAirTechno->IsInAir() ? !pWHExt->AffectsAir : !pWHExt->AffectsGround)
-		return NextTechno;
 
 	if (pAirTechno != pSourceTechno)
 		return 0;
@@ -2316,7 +2337,9 @@ DEFINE_HOOK(0x489416, MapClass_DamageArea_AirDamageSelfFix, 0x6)
 	if (pSourceTechno->GetTechnoType()->DamageSelf)
 		return 0;
 
-	if (pWHExt->AllowDamageOnSelf.Get(RulesExt::Global()->AllowDamageOnSelf))
+	GET_BASE(WarheadTypeClass*, pWarhead, 0xC);
+
+	if (WarheadTypeExt::Fetch(pWarhead)->AllowDamageOnSelf.Get(RulesExt::Global()->AllowDamageOnSelf))
 		return 0;
 
 	return NextTechno;
@@ -2349,76 +2372,6 @@ DEFINE_HOOK(0x4893C3, MapClass_DamageArea_DamageAir, 0x6)
 // Note: Ares hook at 0x489562(0x6) and return 0
 DEFINE_JUMP(LJMP, 0x489568, 0x489592);
 
-DEFINE_NAKED_HOOK(0x4896BF, DamageArea_DamageItemsFix1)
-{
-	// Use:
-	// ebx -> pCell , no change
-	// esi -> pObject , CHECK_THIS_OBJECT: change , CHECK_NEXT_CELL: will be covered later
-	// eax -> returnAddress , will be covered later
-	__asm
-	{
-		mov dword ptr [DamageAreaTemp::CheckingCell], ebx
-
-		mov esi, [ebx]CellClass.FirstObject
-		test esi, esi
-		jnz CHECK_THIS_OBJECT
-
-		mov esi, [ebx]CellClass.AltObject
-		test esi, esi
-		jz CHECK_NEXT_CELL
-
-		mov byte ptr [DamageAreaTemp::CheckingCellAlt], 1
-
-	CHECK_THIS_OBJECT:
-
-		mov eax, 0x4896DD
-		jmp eax
-
-	CHECK_NEXT_CELL:
-
-		mov eax, 0x4899BE
-		jmp eax
-	}
-}
-
-DEFINE_NAKED_HOOK(0x4899B3, DamageArea_DamageItemsFix2)
-{
-	// Use:
-	// esi -> pObject , CHECK_THIS_OBJECT: change , CHECK_NEXT_CELL: will be covered later
-	// eax -> returnAddress , will be covered later
-	__asm
-	{
-		mov esi, [esi]ObjectClass.NextObject
-		test esi, esi
-		jnz CHECK_THIS_OBJECT
-
-		mov al, [DamageAreaTemp::CheckingCellAlt]
-		test al, al
-		jnz CHECK_NEXT_CELL_RESET
-
-		mov esi, [DamageAreaTemp::CheckingCell]
-		mov esi, [esi]CellClass.AltObject
-		test esi, esi
-		jz CHECK_NEXT_CELL
-
-		mov byte ptr [DamageAreaTemp::CheckingCellAlt], 1
-
-	CHECK_THIS_OBJECT:
-
-		mov eax, 0x4896DD
-		jmp eax
-
-	CHECK_NEXT_CELL_RESET:
-
-		mov byte ptr [DamageAreaTemp::CheckingCellAlt], 0
-
-	CHECK_NEXT_CELL:
-
-		mov eax, 0x4899BE
-		jmp eax
-	}
-}
-/*
 DEFINE_HOOK(0x4896BF, DamageArea_DamageItemsFix1, 0x6)
 {
 	enum { CheckNextCell = 0x4899BE, CheckThisObject = 0x4896DD };
@@ -2475,7 +2428,7 @@ DEFINE_HOOK(0x4899B3, DamageArea_DamageItemsFix2, 0x5)
 	R->ESI(pObject);
 	return CheckThisObject;
 }
-*/
+
 DEFINE_HOOK(0x489BDB, DamageArea_RockerItemsFix1, 0x6)
 {
 	enum { SkipGameCode = 0x489C29 };
@@ -2562,7 +2515,9 @@ DEFINE_HOOK(0x71B151, TemporalClass_Fire_ReleaseTargetTarget, 0x6)
 	if (pTarget->LocomotorTarget)
 		pTarget->ReleaseLocomotor(true);
 
-	if (pTarget->GetTechnoType()->OpenTopped)
+	const auto pTargetType = pTarget->GetTechnoType();
+
+	if (pTargetType->OpenTopped)
 	{
 		for (auto pPassenger = pTarget->Passengers.GetFirstPassenger(); pPassenger; pPassenger = abstract_cast<FootClass*>(pPassenger->NextObject))
 		{
@@ -3129,7 +3084,7 @@ DEFINE_HOOK(0x4DB874, FootClass_SetLocation_Extra, 0xA)
 		pParasite->SetLocation(pThis->Location);
 
 	// Restore overriden instructions
-	if (RulesExt::Global()->UpdateInLimbo_NormalPassenger || pThis->GetTechnoType()->OpenTopped)
+	if (pThis->GetTechnoType()->OpenTopped)
 		pThis->UpdatePassengerCoords();
 
 	// Skip Ares's hook
@@ -3216,7 +3171,7 @@ DEFINE_HOOK(0x70D4A0, AbstractClass_ClearTargetToMe_ClearManagerTarget, 0x5)
 	if (!pThis)
 		return 0;
 
-	for (const auto& pTemporal : TemporalClass::Array)
+	for (const auto pTemporal : TemporalClass::Array)
 	{
 		if (pTemporal->Target == pThis)
 			pTemporal->LetGo();
@@ -3224,13 +3179,13 @@ DEFINE_HOOK(0x70D4A0, AbstractClass_ClearTargetToMe_ClearManagerTarget, 0x5)
 
 	// WW don't clear target if the techno has airstrike manager.
 	// No idea why, but for now we respect it and don't handle the airstrike target.
-	//for (const auto& pAirstrike : AirstrikeClass::Array)
+	//for (const auto pAirstrike : AirstrikeClass::Array)
 	//{
 	//	if (pAirstrike->Target == pThis)
 	//		pAirstrike->ClearTarget();
 	//}
 
-	for (const auto& pSpawn : SpawnManagerClass::Array)
+	for (const auto pSpawn : SpawnManagerClass::Array)
 	{
 		if (pSpawn->Target == pThis)
 			pSpawn->ResetTarget();
@@ -3465,7 +3420,7 @@ DEFINE_HOOK(0x4D4203, FootClass_MissionMove_EndCheckFix1, 0x6)
 DEFINE_HOOK(0x4D4221, FootClass_MissionMove_EndCheckFix2, 0x6)
 {
 	GET(FootClass*, pThis, ESI);
-	R->AL(pThis->Locomotor->Is_Moving_Now());
+	R->AL(pThis->Locomotor.GetInterfacePtr()->Is_Moving_Now());
 	return 0x4D422D;
 }
 
@@ -3594,7 +3549,7 @@ DEFINE_HOOK(0x7120DD, TechnoTypeClass_GetRepairStepCost, 0x6)
 	if (RulesExt::Global()->FixRepairStepCost)
 		R->EAX(static_cast<int>((cost / std::max(static_cast<double>(pType->Strength) / RulesClass::Instance->RepairStep, 1.0)) * RulesClass::Instance->RepairPercent));
 	else
-		R->EAX(static_cast<int>((cost / std::max(pType->Strength / RulesClass::Instance->RepairStep, 1))* RulesClass::Instance->RepairPercent));
+		R->EAX(static_cast<int>((cost / std::max(pType->Strength / RulesClass::Instance->RepairStep, 1)) * RulesClass::Instance->RepairPercent));
 
 	return SkipGameCode;
 }
