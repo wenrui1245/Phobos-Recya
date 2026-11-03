@@ -473,6 +473,9 @@ public:
 	static bool DriverKilled(TechnoClass* pThis);
 	static Mission DriverKilledMission(TechnoClass* pThis, Mission mission);
 
+	// Show Cameo（选中载物单位显示乘员图标，移植自上游 PR #2272）
+	static void DrawCameos(TechnoClass* pThis);
+
 	// WeaponHelpers.cpp
 	static int PickWeaponIndex(TechnoClass* pThis, TechnoClass* pTargetTechno, AbstractClass* pTarget, int weaponIndexOne, int weaponIndexTwo, bool allowFallback = true, bool allowAAFallback = true);
 	static void FireWeaponAtSelf(TechnoClass* pThis, WeaponTypeClass* pWeaponType);

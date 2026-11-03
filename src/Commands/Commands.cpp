@@ -28,6 +28,7 @@
 #include "DeselectObject5.h"
 #include "CycleSelection.h"
 #include "CycleTypeSelection.h"
+#include "ToggleCameos.h"
 
 #include <CCINIClass.h>
 #include <WWKeyboardClass.h>
@@ -93,6 +94,8 @@ DEFINE_HOOK(0x533066, CommandClassCallback_Register, 0x6)
 
 	if (Phobos::Config::SelectCapturedCommand)
 		MakeCommand<SelectCapturedCommandClass>();
+
+	MakeCommand<ToggleCameosCommandClass>();
 
 	if (Phobos::Config::SuperWeaponSidebarCommands)
 	{

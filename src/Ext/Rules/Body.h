@@ -681,6 +681,16 @@ public:
 		Valueable<bool> AutoRemoveEarliestBeacon;
 		Valueable<bool> AllowBeaconHotKeyInSinglePlayer;
 
+		// Show Cameo（选中载物单位显示乘员图标，移植自上游 PR #2272）
+		Valueable<bool> ShowCameo;
+		Valueable<bool> ShowCameo_Toggleable;
+		Valueable<int> ShowCameo_PerRow;
+		Valueable<Point2D> ShowCameo_BottomOffset;
+		TranslucencyLevel ShowCameo_Translucency;
+		Valueable<Point2D> ShowCameo_OverlapXY;
+		Valueable<Point2D> ShowCameo_OffsetXY;
+		Valueable<bool> ShowCameo_OverlapPrimary;
+
 		Valueable<int> StartFacing;
 		Valueable<bool> StartFacing_Random;
 
@@ -1337,6 +1347,15 @@ public:
 			, AutoRemoveEarliestBeacon { false }
 
 			, AllowBeaconHotKeyInSinglePlayer { false }
+
+			, ShowCameo { false }
+			, ShowCameo_Toggleable { false }
+			, ShowCameo_PerRow { 5 }
+			, ShowCameo_BottomOffset { { 0, 0 } }
+			, ShowCameo_Translucency { 0 }
+			, ShowCameo_OverlapXY { { 0, 0 } }
+			, ShowCameo_OffsetXY { { 0, 0 } }
+			, ShowCameo_OverlapPrimary { true }
 
 			, StartFacing { 0 }
 			, StartFacing_Random { false }

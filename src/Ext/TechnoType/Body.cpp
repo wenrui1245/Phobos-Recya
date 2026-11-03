@@ -1852,6 +1852,23 @@ void TechnoTypeExt::LoadFromINIFile(CCINIClass* const pINI)
 	// VoiceIFVRepair from Ares 0.2
 	this->VoiceIFVRepair.Read(exINI, pSection, "VoiceIFVRepair");
 	this->ParseVoiceWeaponAttacks(exINI, pSection, this->VoiceWeaponAttacks, this->VoiceEliteWeaponAttacks);
+
+	// Show Cameo（移植自上游 PR #2272）
+	this->ShowCameo.Read(exINI, pSection, "ShowCameo");
+	this->ShowCameo_PerRow.Read(exINI, pSection, "ShowCameo.PerRow");
+	this->ShowCameo_BottomOffset.Read(exINI, pSection, "ShowCameo.BottomOffset");
+	this->ShowCameo_Translucency.Read(exINI, pSection, "ShowCameo.Translucency");
+	this->ShowCameo_OverlapXY.Read(exINI, pSection, "ShowCameo.OverlapXY");
+	this->ShowCameo_OffsetXY.Read(exINI, pSection, "ShowCameo.OffsetXY");
+	this->ShowCameo_OverlapPrimary.Read(exINI, pSection, "ShowCameo.OverlapPrimary");
+
+	// 自定义图标（Art）
+	this->ShowCameo_CustomPalette.LoadFromINI(&CCINIClass::INI_Art, pArtSection, "ShowCameo.CustomPalette");
+	{
+		INI_EX exArtINI(&CCINIClass::INI_Art);
+		this->ShowCameo_CustomShape.Read(exArtINI, pArtSection, "ShowCameo.CustomShape");
+	}
+	this->ShowCameo_CustomPCX.Read(&CCINIClass::INI_Art, pArtSection, "ShowCameo.CustomPCX");
 }
 
 template <typename T>
@@ -2141,6 +2158,17 @@ void TechnoTypeExt::Serialize(T& Stm)
 		.Process(this->GreyCameoPCX)
 		.Process(this->CameoPCX_UniqueTechno)
 		.Process(this->CameoPCX_SelectedInfo)
+
+		.Process(this->ShowCameo)
+		.Process(this->ShowCameo_PerRow)
+		.Process(this->ShowCameo_BottomOffset)
+		.Process(this->ShowCameo_Translucency)
+		.Process(this->ShowCameo_OverlapXY)
+		.Process(this->ShowCameo_OffsetXY)
+		.Process(this->ShowCameo_OverlapPrimary)
+		.Process(this->ShowCameo_CustomPalette)
+		.Process(this->ShowCameo_CustomShape)
+		.Process(this->ShowCameo_CustomPCX)
 
 		.Process(this->SelectedInfo_UpperType)
 		.Process(this->SelectedInfo_UpperIndex)

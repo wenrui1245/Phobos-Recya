@@ -176,6 +176,7 @@ public:
 		static bool SuperWeaponSidebarCommands;
 		static bool DevelopmentCommands;
 		static bool DamageNumbersCommand;
+		static bool ShowCameo_Enable;
 	};
 
 	class Misc

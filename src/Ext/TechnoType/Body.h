@@ -391,6 +391,18 @@ public:
 	PhobosPCXFile CameoPCX_UniqueTechno;
 	PhobosPCXFile CameoPCX_SelectedInfo;
 
+	// Show Cameo（选中载物单位显示乘员图标，移植自上游 PR #2272）
+	Nullable<bool> ShowCameo;
+	Nullable<int> ShowCameo_PerRow;
+	Nullable<Point2D> ShowCameo_BottomOffset;
+	Nullable<TranslucencyLevel> ShowCameo_Translucency;
+	Nullable<Point2D> ShowCameo_OverlapXY;
+	Nullable<Point2D> ShowCameo_OffsetXY;
+	Nullable<bool> ShowCameo_OverlapPrimary;
+	CustomPalette ShowCameo_CustomPalette;
+	TheaterSpecificSHP ShowCameo_CustomShape;
+	PhobosPCXFile ShowCameo_CustomPCX;
+
 	Valueable<DisplayInfoType> SelectedInfo_UpperType;
 	Valueable<int> SelectedInfo_UpperIndex;
 	Valueable<ColorStruct> SelectedInfo_UpperColor;
@@ -982,6 +994,16 @@ public:
 		, GreyCameoPCX {}
 		, CameoPCX_UniqueTechno {}
 		, CameoPCX_SelectedInfo {}
+		, ShowCameo {}
+		, ShowCameo_PerRow {}
+		, ShowCameo_BottomOffset {}
+		, ShowCameo_Translucency {}
+		, ShowCameo_OverlapXY {}
+		, ShowCameo_OffsetXY {}
+		, ShowCameo_OverlapPrimary {}
+		, ShowCameo_CustomPalette {}
+		, ShowCameo_CustomShape {}
+		, ShowCameo_CustomPCX {}
 
 		, SelectedInfo_UpperType { DisplayInfoType::Shield }
 		, SelectedInfo_UpperIndex { 0 }

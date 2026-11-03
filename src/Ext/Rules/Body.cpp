@@ -830,6 +830,16 @@ void RulesExt::ExtData::LoadBeforeTypeData(RulesClass* pThis, CCINIClass* pINI)
 
 	this->AutoTarget_InsignificantWhenMindControlled.Read(exINI, GameStrings::CombatDamage, "AutoTarget.InsignificantWhenMindControlled");
 
+	// Show Cameo（移植自上游 PR #2272）
+	this->ShowCameo.Read(exINI, GameStrings::AudioVisual, "ShowCameo");
+	this->ShowCameo_Toggleable.Read(exINI, GameStrings::AudioVisual, "ShowCameo.Toggleable");
+	this->ShowCameo_PerRow.Read(exINI, GameStrings::AudioVisual, "ShowCameo.PerRow");
+	this->ShowCameo_BottomOffset.Read(exINI, GameStrings::AudioVisual, "ShowCameo.BottomOffset");
+	this->ShowCameo_Translucency.Read(exINI, GameStrings::AudioVisual, "ShowCameo.Translucency");
+	this->ShowCameo_OverlapXY.Read(exINI, GameStrings::AudioVisual, "ShowCameo.OverlapXY");
+	this->ShowCameo_OffsetXY.Read(exINI, GameStrings::AudioVisual, "ShowCameo.OffsetXY");
+	this->ShowCameo_OverlapPrimary.Read(exINI, GameStrings::AudioVisual, "ShowCameo.OverlapPrimary");
+
 	// Section AITargetTypes
 	int itemsCount = pINI->GetKeyCount("AITargetTypes");
 	for (int i = 0; i < itemsCount; ++i)
@@ -1477,6 +1487,14 @@ void RulesExt::ExtData::Serialize(T& Stm)
 		.Process(this->RevealHouses)
 		.Process(this->MissileKeepTargetCoord)
 		.Process(this->UseSidebarRadarOffsetFix)
+		.Process(this->ShowCameo)
+		.Process(this->ShowCameo_Toggleable)
+		.Process(this->ShowCameo_PerRow)
+		.Process(this->ShowCameo_BottomOffset)
+		.Process(this->ShowCameo_Translucency)
+		.Process(this->ShowCameo_OverlapXY)
+		.Process(this->ShowCameo_OffsetXY)
+		.Process(this->ShowCameo_OverlapPrimary)
     ;
 }
 
