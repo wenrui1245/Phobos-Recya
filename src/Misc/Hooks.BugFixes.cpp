@@ -854,28 +854,9 @@ DEFINE_JUMP(LJMP, 0x6E0C1D, 0x6E0C8B);//Simplify TAction 36
 
 // Fix a glitch related to incorrect target setting for missiles
 // Author: Belonit
-DEFINE_HOOK(0x6B75AC, SpawnManagerClass_AI_SetDestinationForMissiles, 0x5)
-{
-	GET(SpawnManagerClass*, pSpawnManager, ESI);
-	GET(TechnoClass*, pSpawnTechno, EDI);
-
-	auto const pTarget = pSpawnManager->Target;
-
-	// Oct 27, 2025 - Starkku: Restore old behaviour for building destinations to eliminate inaccuracy issues.
-	// Aug 10, 2026 - Ollerus: Add a toggle since it'll affect the falling point and result in damage change.
-	if (!RulesExt::Global()->MissileSpawnAttackCell || pTarget->WhatAmI() == AbstractType::Building)
-	{
-		pSpawnTechno->SetDestination(pTarget, true);
-	}
-	else
-	{
-		const CoordStruct coord = pSpawnManager->Target->GetCenterCoords();
-		CellClass* pCellDestination = MapClass::Instance.TryGetCellAt(coord);
-		pSpawnTechno->SetDestination(pCellDestination, true);
-	}
-
-	return 0x6B75BC;
-}
+// Upstream version removed: this hook already exists in Ext/Techno/Hooks.Others.cpp
+// with additional Missile_Tracing / MovingDestination support specific to this fork.
+// Note: upstream's RulesExt MissileSpawnAttackCell toggle is therefore not applied here.
 
 DEFINE_HOOK(0x689EB0, ScenarioClass_ReadMap_SkipHeaderInCampaign, 0x6)
 {
