@@ -234,6 +234,7 @@ public:
 		Valueable<bool> KeepRange_AllowAI;
 		Valueable<bool> KeepRange_AllowPlayer;
 		Valueable<int> KeepRange_EarlyStopFrame;
+		Valueable<bool> KeepRange_GlobalOverride;
 		Valueable<bool> AircraftWeapon_KickOutPassengers;
 		Valueable<double> CrushSlowdownMultiplier;
 		Valueable<bool> SkipCrushSlowdown;
@@ -932,6 +933,7 @@ public:
 			, KeepRange_AllowAI { false }
 			, KeepRange_AllowPlayer { false }
 			, KeepRange_EarlyStopFrame { 0 }
+			, KeepRange_GlobalOverride { false }
 			, AircraftWeapon_KickOutPassengers { true }
 			, CrushSlowdownMultiplier { 0.2 }
 			, SkipCrushSlowdown { false }

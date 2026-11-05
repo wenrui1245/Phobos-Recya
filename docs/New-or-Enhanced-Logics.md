@@ -5153,6 +5153,7 @@ FeedbackWeapon=  ; WeaponType
     - `KeepRange.AllowAI` controls whether this function is effective for computer.
     - `KeepRange.AllowPlayer` controls whether this function is effective for human.
     - The function won't take effect if the techno's rearm time left is shorter than `KeepRange.EarlyStopFrame`.
+    - `KeepRange.GlobalOverride` decides whether the global settings below override the weapon-level ones. By default the weapon-level settings take precedence and the global ones act as fallbacks.
 
 ```{note}
 That is to say, the total duration of executing KeepRange equals the value of weapon `ROF` minus the value of `KeepRange.EarlyStopFrame`.
@@ -5164,6 +5165,7 @@ In `rulesmd.ini`:
 KeepRange.AllowAI=false       ; boolean
 KeepRange.AllowPlayer=false   ; boolean
 KeepRange.EarlyStopFrame=0    ; integer
+KeepRange.GlobalOverride=false ; boolean, whether the global settings override the weapon-level ones
 
 [SOMEWEAPON]                  ; WeaponType
 KeepRange=0                   ; floating point value

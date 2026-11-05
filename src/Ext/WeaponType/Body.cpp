@@ -492,15 +492,21 @@ int WeaponTypeExt::GetTechnoKeepRange(WeaponTypeClass* pThis, TechnoClass* pFire
 		return 0;
 
 	const auto pHouse = pFirer->Owner;
+	const auto pRulesExt = RulesExt::Global();
+	// KeepRange.GlobalOverride：为 true 时全局设置覆盖武器级配置，否则武器级优先、未配置回退全局
+	const bool globalOverride = pRulesExt->KeepRange_GlobalOverride;
+	const bool allow = pHouse && pHouse->IsControlledByHuman()
+		? (globalOverride ? pRulesExt->KeepRange_AllowPlayer : pExt->KeepRange_AllowPlayer.Get(pRulesExt->KeepRange_AllowPlayer))
+		: (globalOverride ? pRulesExt->KeepRange_AllowAI : pExt->KeepRange_AllowAI.Get(pRulesExt->KeepRange_AllowAI));
 
-	if (pHouse && pHouse->IsControlledByHuman()
-		? !pExt->KeepRange_AllowPlayer.Get(RulesExt::Global()->KeepRange_AllowPlayer)
-		: !pExt->KeepRange_AllowAI.Get(RulesExt::Global()->KeepRange_AllowAI))
-	{
+	if (!allow)
 		return 0;
-	}
 
-	if (pFirer->RearmTimer.GetTimeLeft() < pExt->KeepRange_EarlyStopFrame.Get(RulesExt::Global()->KeepRange_EarlyStopFrame))
+	const int earlyStopFrame = globalOverride
+		? pRulesExt->KeepRange_EarlyStopFrame
+		: pExt->KeepRange_EarlyStopFrame.Get(pRulesExt->KeepRange_EarlyStopFrame);
+
+	if (pFirer->RearmTimer.GetTimeLeft() < earlyStopFrame)
 		return 0;
 
 	if (!pFirer->RearmTimer.InProgress())

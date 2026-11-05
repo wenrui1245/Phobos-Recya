@@ -326,6 +326,7 @@ void RulesExt::ExtData::LoadBeforeTypeData(RulesClass* pThis, CCINIClass* pINI)
 	this->KeepRange_AllowAI.Read(exINI, GameStrings::General, "KeepRange.AllowAI");
 	this->KeepRange_AllowPlayer.Read(exINI, GameStrings::General, "KeepRange.AllowPlayer");
 	this->KeepRange_EarlyStopFrame.Read(exINI, GameStrings::General, "KeepRange.EarlyStopFrame");
+	this->KeepRange_GlobalOverride.Read(exINI, GameStrings::General, "KeepRange.GlobalOverride");
 	this->AircraftWeapon_KickOutPassengers.Read(exINI, GameStrings::General, "AircraftWeapon.KickOutPassengers");
 	this->CrushSlowdownMultiplier.Read(exINI, GameStrings::General, "CrushSlowdownMultiplier");
 	this->SkipCrushSlowdown.Read(exINI, GameStrings::General, "SkipCrushSlowdown");
@@ -1108,6 +1109,7 @@ void RulesExt::ExtData::Serialize(T& Stm)
 		.Process(this->KeepRange_AllowAI)
 		.Process(this->KeepRange_AllowPlayer)
 		.Process(this->KeepRange_EarlyStopFrame)
+		.Process(this->KeepRange_GlobalOverride)
 		.Process(this->AircraftWeapon_KickOutPassengers)
 		.Process(this->CrushSlowdownMultiplier)
 		.Process(this->SkipCrushSlowdown)
