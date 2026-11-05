@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <memory>
+#include <cstring>
 #include <type_traits>
 #include <vector>
 
@@ -39,6 +40,15 @@ public:
 	size_t Offset() const
 	{
 		return this->CurrentOffset;
+	}
+
+	bool Peek(data_t* value, size_t size) const
+	{
+		if (this->CurrentOffset > this->Data.size()
+			|| size > this->Data.size() - this->CurrentOffset)
+			return false;
+		std::memcpy(value, this->Data.data() + this->CurrentOffset, size);
+		return true;
 	}
 
 	/**
@@ -159,6 +169,12 @@ public:
 	}
 
 	// helpers
+
+	void Fail() { this->success = false; }
+	template<typename T> bool Peek(T& value) const
+	{
+		return this->stream->Peek(reinterpret_cast<PhobosByteStream::data_t*>(&value), sizeof(T));
+	}
 
 	bool AtEndOfBlock() const { return this->stream->Size() == this->stream->Offset(); }
 

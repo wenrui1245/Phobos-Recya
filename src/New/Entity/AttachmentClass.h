@@ -18,6 +18,7 @@ public:
 	AttachmentTypeClass* Type;
 	TechnoClass* Parent;
 	TechnoClass* Child;
+	int OriginalOwnerIndex;
 	CDTimerClass RespawnTimer;
 	CoordStruct StartFLH;
 	CoordStruct DesiredFLH;
@@ -31,6 +32,7 @@ public:
 		Type { pType },
 		Parent { pParent },
 		Child { pChild },
+		OriginalOwnerIndex { -1 },
 		RespawnTimer {},
 		StartFLH { pType->FLH.Get() },
 		DesiredFLH { pType->FLH.Get() },
@@ -47,6 +49,7 @@ public:
 		Type {},
 		Parent {},
 		Child {},
+		OriginalOwnerIndex { -1 },
 		RespawnTimer {},
 		StartFLH {},
 		DesiredFLH {},

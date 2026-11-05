@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <Utilities/Enum.h>
 #include <Utilities/Enumerable.h>
@@ -22,10 +22,12 @@ public:
 	Valueable<bool> InheritTarget;
 	Valueable<bool> InheritTarget_Force;
 	Valueable<bool> InheritOwner; // aka mind control inheritance
+	Valueable<bool> InheritOwner_DetachToOriginal; // false keeps the child with the parent's current owner when it detaches
 	Valueable<bool> InheritStateEffects; // phasing out, stealth etc.
 	Valueable<bool> InheritDestruction;
 	Valueable<bool> InheritHeightStatus;
 	Valueable<bool> OccupiesCell;
+	Valueable<bool> Targetable; // whether the child can be picked as an independent target
 	Valueable<bool> LowSelectionPriority;
 	Valueable<bool> TransparentToMouse;
 	Valueable<AttachmentYSortPosition> YSortPosition;
@@ -48,8 +50,10 @@ public:
 		, InheritTarget { false }
 		, InheritTarget_Force { false }
 		, InheritOwner { true }
+		, InheritOwner_DetachToOriginal { true }
 		, InheritStateEffects { true }
 		, OccupiesCell { true }
+		, Targetable { false }
 		, InheritDestruction { true }
 		, InheritHeightStatus { true }
 		, LowSelectionPriority { true }

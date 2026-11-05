@@ -1,4 +1,4 @@
-﻿#include "AttachmentLocomotionClass.h"
+#include "AttachmentLocomotionClass.h"
 
 #include <CellSpread.h>
 #include <ScenarioClass.h>
@@ -274,7 +274,7 @@ bool AttachmentLocomotionClass::Process()
 	// sight is handled in FootClass::AI
 
 	AttachmentClass* pAttachment = this->GetAttachment();
-	if (pAttachment && pAttachment->GetType()->InheritHeightStatus)
+	if (pAttachment && pAttachment->Parent && pAttachment->GetType()->InheritHeightStatus)
 	{
 		this->LinkedTo->OnBridge = pAttachment->Parent->OnBridge;
 	}
@@ -509,6 +509,10 @@ Layer AttachmentLocomotionClass::CalculateLayer()
 
 bool AttachmentLocomotionClass::ShouldBeOnBridge()
 {
-	return MapClass::Instance.GetCellAt(this->LinkedTo->Location)->ContainsBridge()
+	// A child follows its parent's coordinates, so it can sit outside the map for a frame:
+	// tunnel paths and the bridge transition both report a location the cell grid cannot map.
+	CellClass* const pCell = MapClass::Instance.TryGetCellAt(this->LinkedTo->Location);
+
+	return pCell && pCell->ContainsBridge()
 		&& this->LinkedTo->GetHeight() >= CellClass::BridgeHeight && !this->LinkedTo->IsFallingDown;
 }

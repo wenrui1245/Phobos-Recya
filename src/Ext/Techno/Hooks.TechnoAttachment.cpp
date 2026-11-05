@@ -1,4 +1,4 @@
-﻿#include "Body.h"
+#include "Body.h"
 
 #include <EventClass.h>
 #include <WarheadTypeClass.h>
@@ -810,7 +810,21 @@ DEFINE_HOOK(0x6FC3F4, TechnoClass_CanFire_HandleAttachmentLogics, 0x6)
 	GET(TechnoClass*, pTarget, EBP);
 	GET(WeaponTypeClass*, pWeapon, EDI);
 
-	return (pWeapon->Warhead && pWeapon->Warhead->IsLocomotor && TechnoExt::IsChildOf(pThis, pTarget)) ? ReturnFireErrorIllegal : ContinueCheck;
+	if (pWeapon->Warhead && pWeapon->Warhead->IsLocomotor && TechnoExt::IsChildOf(pThis, pTarget))
+		return ReturnFireErrorIllegal;
+
+	// An attachment child is part of its parent, not a target of its own, unless the
+	// attachment type asks to be one.
+	if (const auto pTargetExt = TechnoExt::TryFetch(pTarget))
+	{
+		if (const auto pAttachment = pTargetExt->ParentAttachment)
+		{
+			if (!pAttachment->GetType()->Targetable)
+				return ReturnFireErrorIllegal;
+		}
+	}
+
+	return ContinueCheck;
 }
 
 // TODO WhatWeaponShouldIUse

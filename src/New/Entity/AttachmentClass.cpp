@@ -1,4 +1,5 @@
 #include "AttachmentClass.h"
+#include "AttachmentSaveFormat.h"
 
 #include <Dir.h>
 #include <BulletClass.h>
@@ -336,8 +337,19 @@ bool AttachmentClass::AttachChild(TechnoClass* pChild)
 
 	if (pType->InheritOwner)
 	{
-		if (auto pController = pChild->MindControlledBy)
-			pController->CaptureManager->FreeUnit(pChild);
+		this->OriginalOwnerIndex = pChild->Owner ? pChild->Owner->ArrayIndex : -1;
+
+		if (auto const pController = pChild->MindControlledBy)
+		{
+			if (pController->CaptureManager)
+			{
+				// Ask the controller for the house the child was taken from before freeing the link.
+				if (auto const pOriginalOwner = pController->CaptureManager->GetOriginalOwner(pChild))
+					this->OriginalOwnerIndex = pOriginalOwner->ArrayIndex;
+
+				pController->CaptureManager->FreeUnit(pChild);
+			}
+		}
 	}
 
 	return true;
@@ -352,13 +364,24 @@ bool AttachmentClass::DetachChild()
 		if (!this->Child->InLimbo && pType->ParentDetachmentMission != Mission::None)
 			this->Child->QueueMission(pType->ParentDetachmentMission, false);
 
-		// FIXME this won't work probably
-		if (pType->InheritOwner)
-			this->Child->SetOwningHouse(this->Parent->GetOriginalOwner(), false);
+		if (pType->InheritOwner && pType->InheritOwner_DetachToOriginal)
+		{
+			HouseClass* const pOriginalOwner = this->OriginalOwnerIndex >= 0
+				? HouseClass::Array.GetItemOrDefault(this->OriginalOwnerIndex)
+				: nullptr;
+
+			if (pOriginalOwner && pOriginalOwner != this->Child->Owner)
+				this->Child->SetOwningHouse(pOriginalOwner, false);
+		}
 
 		// remove the attachment locomotor manually just to be safe
 		if (auto const pChildAsFoot = abstract_cast<FootClass*, true>(this->Child))
-			LocomotionClass::End_Piggyback(pChildAsFoot->Locomotor);
+		{
+			if (pChildAsFoot->Locomotor)
+				LocomotionClass::End_Piggyback(pChildAsFoot->Locomotor);
+		}
+
+		this->OriginalOwnerIndex = -1;
 
 		auto pChildExt = TechnoExt::Fetch(this->Child);
 		pChildExt->ParentAttachment = nullptr;
@@ -418,12 +441,23 @@ bool AttachmentClass::Serialize(T& stm)
 
 bool AttachmentClass::Load(PhobosStreamReader& stm, bool RegisterForChange)
 {
-	return Serialize(stm);
+	bool modern = false;
+	this->OriginalOwnerIndex = -1;
+	if (!AttachmentSaveFormat::Read(stm, AttachmentSaveFormat::ObjectMagic, modern)
+		|| !Serialize(stm))
+		return false;
+	if (modern)
+		stm.Process(this->OriginalOwnerIndex);
+	if (this->OriginalOwnerIndex < -1)
+		stm.Fail();
+	return stm.Success();
 }
 
 bool AttachmentClass::Save(PhobosStreamWriter& stm) const
 {
-	return const_cast<AttachmentClass*>(this)->Serialize(stm);
+	AttachmentSaveFormat::Write(stm, AttachmentSaveFormat::ObjectMagic);
+	return const_cast<AttachmentClass*>(this)->Serialize(stm)
+		&& stm.Process(this->OriginalOwnerIndex).Success();
 }
 
 #pragma endregion

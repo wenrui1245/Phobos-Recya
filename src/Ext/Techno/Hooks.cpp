@@ -697,7 +697,11 @@ DEFINE_HOOK(0x701966, TechnoClass_ReceiveDamage_ArmorMultiplier, 0x6)
 	GET_STACK(HouseClass*, pSourceHouse, STACK_OFFSET(0xC4, 0x1C));
 	GET_STACK(WarheadTypeClass*, pWarhead, STACK_OFFSET(0xC4, 0xC));
 
-	R->EAX(static_cast<int>(damage / TechnoExt::CalculateArmorMultipliers(pThis, pWarhead, pSourceHouse, true)));
+	const double mult = TechnoExt::CalculateArmorMultipliers(pThis, pWarhead, pSourceHouse, true);
+
+
+
+	R->EAX(static_cast<int>(damage / mult));
 
 	return 0;
 }

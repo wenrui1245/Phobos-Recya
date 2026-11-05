@@ -1,4 +1,5 @@
-﻿#include "AttachmentTypeClass.h"
+#include "AttachmentTypeClass.h"
+#include <New/Entity/AttachmentSaveFormat.h>
 
 #include <Utilities/TemplateDef.h>
 
@@ -26,10 +27,12 @@ void AttachmentTypeClass::LoadFromINI(CCINIClass* pINI)
 	this->InheritTarget.Read(exINI, section, "InheritTarget");
 	this->InheritTarget_Force.Read(exINI, section, "InheritTarget.Force");
 	this->InheritOwner.Read(exINI, section, "InheritOwner");
+	this->InheritOwner_DetachToOriginal.Read(exINI, section, "InheritOwner.DetachToOriginal");
 	this->InheritStateEffects.Read(exINI, section, "InheritStateEffects");
 	this->InheritDestruction.Read(exINI, section, "InheritDestruction");
 	this->InheritHeightStatus.Read(exINI, section, "InheritHeightStatus");
 	this->OccupiesCell.Read(exINI, section, "OccupiesCell");
+	this->Targetable.Read(exINI, section, "Targetable");
 	this->LowSelectionPriority.Read(exINI, section, "LowSelectionPriority");
 	this->TransparentToMouse.Read(exINI, section, "TransparentToMouse");
 	this->YSortPosition.Read(exINI, section, "YSortPosition");
@@ -72,10 +75,20 @@ void AttachmentTypeClass::Serialize(T& Stm)
 
 void AttachmentTypeClass::LoadFromStream(PhobosStreamReader& Stm)
 {
+	bool modern = false;
+	if (!AttachmentSaveFormat::Read(Stm, AttachmentSaveFormat::TypeMagic, modern))
+		return;
+	// Old saves allowed independent targeting and did not record original owners.
+	this->Targetable = true;
+	this->InheritOwner_DetachToOriginal = true;
 	this->Serialize(Stm);
+	if (modern && Stm.Success())
+		Stm.Process(this->InheritOwner_DetachToOriginal).Process(this->Targetable);
 }
 
 void AttachmentTypeClass::SaveToStream(PhobosStreamWriter& Stm)
 {
+	AttachmentSaveFormat::Write(Stm, AttachmentSaveFormat::TypeMagic);
 	this->Serialize(Stm);
+	Stm.Process(this->InheritOwner_DetachToOriginal).Process(this->Targetable);
 }

@@ -3818,3 +3818,10 @@ DEFINE_HOOK(0x6F1E54, TeamTypeClass_CanRecruitUnit_CrashOrSinking, 0x6)
 	return (pUnit->IsCrashing && !pUnit->IsAttackedByLocomotor) || pUnit->IsSinking ? ReturnFalse : 0;
 }
 
+// The map-load staging surface is 640x400x2BPP, so DisplayClass::Read_Scenario caps every
+// IsoMapPack section at 512,000 bytes and a detailed map's compressed terrain is truncated
+// before MapClass::Read_Binary_5 decodes it. Nothing else uses that surface, so size it for
+// the worst case instead: a full 512x512 map of packed terrain.
+DEFINE_PATCH(0x4AD343, 0x68, 0x00, 0x10, 0x00, 0x00); // push 4096, was push 400
+DEFINE_PATCH(0x4AD356, 0x68, 0x00, 0x00, 0x50, 0x00); // push 5,242,880, was push 512,000
+
