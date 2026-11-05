@@ -292,7 +292,14 @@ void TechnoExt::DrawFactoryProgress(BuildingClass* pThis, RectangleStruct* pBoun
 	FactoryClass* pPrimaryFactory = nullptr;
 	FactoryClass* pSecondaryFactory = nullptr;
 
-	if (pHouse->IsControlledByHuman())
+	using QueryIndependent = HRESULT(__stdcall*)(BuildingClass*, FactoryClass**);
+	static const auto queryIndependent = []() -> QueryIndependent {
+		const auto module = GetModuleHandleA("Kaleidoscope.dll");
+		return module ? reinterpret_cast<QueryIndependent>(GetProcAddress(module, "_Kaleidoscope_QueryProducerFactory@8")) : nullptr;
+	}();
+	const bool independent = queryIndependent && queryIndependent(pThis, &pPrimaryFactory) == S_OK;
+	if (independent) { /* Idle is authoritative too: no shared-queue fallback. */ }
+	else if (pHouse->IsControlledByHuman())
 	{
 		if (!pThis->IsPrimaryFactory)
 			return;

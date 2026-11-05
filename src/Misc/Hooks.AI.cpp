@@ -1,4 +1,4 @@
-#include <New/Entity/AttachmentClass.h>
+﻿#include <New/Entity/AttachmentClass.h>
 
 #include <Ext/Anim/Body.h>
 #include <Ext/House/Body.h>
@@ -7,6 +7,7 @@
 #include <SessionClass.h>
 #include <Utilities/Macro.h>
 #include <Interop/FogOwner.h>
+#include <Misc/FoggedVoxel.h>
 
 #pragma region SmudgeUpdate
 
@@ -983,8 +984,10 @@ DEFINE_HOOK(0x486B21, CellClass_FogCell_FreezeObjects, 0x6)
 		if (absType == AbstractType::Building)
 		{
 			const auto& pBuilding = static_cast<BuildingClass*>(pObject);
-			if (pBuilding->IsAllFogged())
+			if (!pBuilding->IsFogged && pBuilding->IsAllFogged())
+			{
 				pBuilding->FreezeInFog(pVector, pCell, (!pBuilding->IsStrange() && pBuilding->Translucency != 15));
+			}
 		}
 		else if (absType == AbstractType::Unit
 			|| absType == AbstractType::Aircraft
@@ -1124,6 +1127,76 @@ DEFINE_FUNCTION_JUMP(CALL, 0x5FD2D2, FoggedObjectHelper::OverlayClassFake::Overl
 DEFINE_FUNCTION_JUMP(CALL, 0x6B4B14, FoggedObjectHelper::SmudgeClassFake::SmudgeClass_Unlimbo_CheckFog);
 DEFINE_FUNCTION_JUMP(CALL, 0x71D012, FoggedObjectHelper::TerrainClassFake::TerrainClass_Unlimbo_CheckFog);
 
+
+// FreezeInFog is also called by Building AI at 440C03 (Visible=false), not
+// only CellClass::FogCell. Prepare at the common entry before native drawing
+// state changes, and never sample a building that was not actually visible.
+DEFINE_HOOK(0x457AA0, BuildingClass_FreezeInFog_PrepareVoxel, 0x6)
+{
+	GET(BuildingClass*, building, ECX);
+	GET_STACK(bool, visible, 0xC);
+	if (visible)
+		FoggedVoxel::Prepare(building);
+	return 0;
+}
+
+// Copy the native visible voxel render, including barrel/turret draw order.
+// 70750E: ECX = selected converter, EDI = Techno, [ESP] = flags.
+DEFINE_HOOK(0x70750E, TechnoClass_BlitVoxel_RememberFogPalette, 0x5)
+{
+	GET(TechnoClass*, pThis, EDI);
+	GET(ConvertClass*, palette, ECX);
+	GET_STACK(unsigned, flags, 0x0);
+	FoggedVoxel::SelectPalette(pThis, palette, flags);
+	return 0;
+}
+
+// All 13 native RLE_Blit arguments have already been pushed. In particular
+// [ESP+14/18/1C/30] = Z adjustment/gradient/intensity/tint. Resume the call once.
+DEFINE_HOOK(0x707736, TechnoClass_BlitVoxel_RememberFogImage, 0x5)
+{
+	GET(TechnoClass*, pThis, EDI);
+	GET(const VoxelCacheStruct*, cache, ESI);
+	GET(const RectangleStruct*, clip, EDX);
+	LEA_STACK(const unsigned*, arguments, 0x0);
+	FoggedVoxel::Capture(pThis, cache, clip, arguments);
+	return 0;
+}
+
+// Cache misses and recoiling barrels render through a plain 8-bit surface.
+// EBP = source Techno, EDX = converter, EBX = flags; 11 blit args on the stack.
+DEFINE_HOOK(0x707235, TechnoClass_RenderVoxel_RememberFogImage, 0x5)
+{
+	GET(TechnoClass*, pThis, EBP);
+	GET(ConvertClass*, palette, EDX);
+	GET(unsigned, flags, EBX);
+	LEA_STACK(const unsigned*, arguments, 0x0);
+	FoggedVoxel::CapturePlain(pThis, palette, flags, arguments);
+	return 0;
+}
+
+// Bind before the animation loop: EBX is still the original building, EDI
+// is its snapshot and the main SHP bounds are initialized. The later animation
+// union preserves our expanded bounds. Do not read ESP+54 at 4D1310: 4D119A
+// reuses that argument slot for AnimTypeClass*, so animated buildings lose VXLs.
+DEFINE_HOOK(0x4D10D3, FoggedObjectClass_CTOR_FreezeVoxel, 0x9)
+{
+	GET(FoggedObjectClass*, snapshot, EDI);
+	GET(BuildingClass*, building, EBX);
+	FoggedVoxel::Freeze(building, snapshot);
+	return 0; // mov ecx,ebx; mov byte ptr [ebx+6E7h],1 (IsFogged)
+}
+
+// Only the building branch reaches this jump after its SHP records. Other
+// skip/invalid-record paths must never interpret EBX as a valid snapshot.
+DEFINE_HOOK(0x4D2203, FoggedObjectClass_DrawFrozenVoxel, 0x5)
+{
+	GET(FoggedObjectClass*, snapshot, EBX);
+	GET(const RectangleStruct*, bounds, EDI);
+	FoggedVoxel::Draw(snapshot, bounds);
+	return 0;
+}
+
 // FoggedObjectClass 析构（0x4D1650）里摘除全局绘制记录的二分查找可能摘错对象
 // （见 FoggedObjectHelper::RemoveDrawRecordsOf 的说明）。这里在向量被释放之前，
 // 按对象指针把绘制数组里指向自己的记录全部清掉。
@@ -1131,6 +1204,7 @@ DEFINE_HOOK(0x4D1855, FoggedObjectClass_Destructor_CleanDrawRecords, 0x7)
 {
 	GET(FoggedObjectClass*, pThis, EDI);
 
+	FoggedVoxel::Remove(pThis);
 	FoggedObjectHelper::RemoveDrawRecordsOf(pThis);
 
 	return 0; // 重新执行被覆盖的 mov [edi+5Ch], 7E8BC0h

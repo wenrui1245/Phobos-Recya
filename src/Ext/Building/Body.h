@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <Ext/Techno/Body.h>
 #include <Ext/BuildingType/Body.h>
 #include <BuildingClass.h>
@@ -105,6 +105,7 @@ public:
 		return AbstractExt::TryFetch<BuildingExt>(pThis);
 	}
 
+	static void Clear();
 	static bool LoadGlobals(PhobosStreamReader& Stm);
 	static bool SaveGlobals(PhobosStreamWriter& Stm);
 
