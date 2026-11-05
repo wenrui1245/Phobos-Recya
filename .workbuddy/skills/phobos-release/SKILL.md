@@ -1,19 +1,20 @@
 ---
 name: phobos-release
-description: Phobos-Mix 整合包发布流程。当用户要发布新版本（Recya 版本）、打发布包、为更新改动说明的占位小节补充条目、回填发布日期时使用。覆盖 changelog 起草、upstream 合并行提取、发布号确认、Release 构建、zip 打包、commit + tag 全流程。
+description: Phobos-Mix 整合包发布流程。当用户要发布新版本（Recloud 版本，历史后缀为 Recya）、打发布包、为更新改动说明的占位小节补充条目、回填发布日期时使用。覆盖 changelog 起草、upstream 合并行提取、发布号确认、Release 构建、zip 打包、commit + tag 全流程。
 ---
 
 # Phobos-Mix 整合包发布流程
 
 ## 核心约定（结构不变量，全部由脚本保证，agent 不要手改）
 
-- **版本号唯一定义点**：`src/Phobos.version.h` 的 `VERSION_EX_PATCH` = Recya 发布号 RecyaN。发布时由 `prepare` 递增（EX_PATCH+1），发布后 version.h 停留在最新已发布版本。其余宏（MAJOR/MINOR/REVISION/PATCH、PRERELEASE_SUFFIX）跟随 upstream，发布流程不碰。
-- **zip 名 / tag**：`Phobos-v{MAJOR.MINOR.REVISION.PATCH}-Recya{EX_PATCH}.zip` / `v{...}-Recya{N}`，输出到 `Release/`。
+- **版本号唯一定义点**：`src/Phobos.version.h` 的 `VERSION_EX_PATCH` = Recloud 发布号 RecloudN。发布时由 `prepare` 递增（EX_PATCH+1），发布后 version.h 停留在最新已发布版本。其余宏（MAJOR/MINOR/REVISION/PATCH、PRERELEASE_SUFFIX）跟随 upstream，发布流程不碰。
+- **后缀沿革**：2026.11 起版本后缀由 `-Recya{N}` 改为 `-Recloud{N}`（原作者弃坑，计数延续不重置；平台名 Phobos-Recya-Recloud）。`Phobos.version.h` 与 `scripts/release_pack.py` 中的后缀字符串均已同步；涉及旧版本号的历史记录（如 tag `v0.5.0.0-Recya2`）不改。
+- **zip 名 / tag**：`Phobos-v{MAJOR.MINOR.REVISION.PATCH}-Recloud{EX_PATCH}.zip` / `v{...}-Recloud{N}`，输出到 `Release/`。
 - **发布包结构**（11 条目，对齐参考包 Phobos-v0.5.0.0-Recya1.zip）：`Phobos.dll` + `Phobos.pdb` + `整合包说明/` 内容平铺（底部选择栏模板/ 5 个 shp + 抛体案例参考.ini + 更新改动说明.md + 额外功能说明.md）。GBK 文件名、无 UTF-8 flag、目录条目 stored——脚本已复刻。
 - **占位小节循环**：`整合包说明/更新改动说明.md` 里 `### YYYY.X.XX  \`Phobos v旧\` -> \`Phobos v新\`` 是开发期占位小节；发布日回填日期，打包后由脚本开下一轮占位小节。占位小节的目标版本与 EX_PATCH+1 由脚本互校。
 - **不碰 `PRERELEASE_SUFFIX`**——那是 upstream 的 alpha 标记。
 - pack 打包时自动从 changelog 快照中剔除占位小节（含下一轮的），任何时间点都能产出干净 zip。
-- dll 内嵌版本串 = zip 版本号（special build 形态 `0.5.0.0-Recya{EX_PATCH} @ commit @ ref`）。
+- dll 内嵌版本串 = zip 版本号（special build 形态 `0.5.0.0-Recloud{EX_PATCH} @ commit @ ref`）。
 
 ## 工具：scripts/release_pack.py
 
@@ -30,7 +31,7 @@ python scripts/release_pack.py all [--dry-run]       # 一条龙（review 场景
 ## 构建说明
 
 - 发布构建（`build` 子命令）与日常开发构建同路径（`build_release.bat`），产物带 git 戳
-  （`v0.5.0.0-Recya{EX_PATCH} @ commit-dirty @ refs/heads/...`）。Phobos.props 保持原样，不加任何构建开关。
+  （`v0.5.0.0-Recloud{EX_PATCH} @ commit-dirty @ refs/heads/...`）。Phobos.props 保持原样，不加任何构建开关。
 - 构建环境坑：Git Bash + 代理下环境块可能同时含 `HTTPS_PROXY`/`https_proxy`（仅大小写不同），
   MSBuild 会崩 MSB6001——脚本已用 `_msbuild_safe_env()` 去重，无需手动处理。
 
@@ -48,8 +49,8 @@ python scripts/release_pack.py all [--dry-run]       # 一条龙（review 场景
 3. `python scripts/release_pack.py prepare --dry-run` —— 确认后去掉 `--dry-run` 实跑（EX_PATCH 递增 + 日期回填）。
 4. `python scripts/release_pack.py build` —— 后台运行（全量编译需数分钟），完成后检查版本戳校验是否通过。
 5. `python scripts/release_pack.py pack` —— 展示条目清单。
-6. `python scripts/release_pack.py finish --dry-run`（如有额外文件加 `--extra`）—— 确认后实跑（commit + tag `v{版本}-Recya{N}`）。
-7. 用 present_files 展示 `Release/Phobos-v{版本}-Recya{N}.zip`。
+6. `python scripts/release_pack.py finish --dry-run`（如有额外文件加 `--extra`）—— 确认后实跑（commit + tag `v{版本}-Recloud{N}`）。
+7. 用 present_files 展示 `Release/Phobos-v{版本}-Recloud{N}.zip`。
 8. **到此为止**：发布 commit 与 tag 留在本地，push（分支/tag）由用户亲自执行——除非用户明确要求，agent 不做任何 push。
 
 ## 边界

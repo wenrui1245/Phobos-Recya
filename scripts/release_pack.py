@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Phobos-Mix 整合包发布打包工具。
 
-发布包结构（对齐 Phobos-v0.5.0.0-Recya1.zip）:
+发布包结构（对齐历史参考包 Phobos-v0.5.0.0-Recya1.zip）:
     Phobos.dll / Phobos.pdb      <- Release 构建产物
     整合包说明/ 目录内容平铺      <- 底部选择栏模板/ + 抛体案例参考.ini + 两个说明 md
 
@@ -11,20 +11,21 @@
     mergeline  生成 upstream 合并 changelog 行（--insert 幂等插入占位小节）
     prepare    校验占位小节 -> EX_PATCH 递增 -> 回填发布日期
     build      调 scripts/build_release.bat 构建 Release 并校验 dll 版本戳
-    pack       组装 zip 到 Release/Phobos-v{版本}-Recya{N}.zip
+    pack       组装 zip 到 Release/Phobos-v{版本}-Recloud{N}.zip
     finish     开下一轮占位小节 -> git commit -> git tag
     all        prepare -> build -> pack -> finish 一条龙
 
 约定:
-    - VERSION_EX_PATCH = Recya 发布号（RecyaN），发布时由 prepare 递增；发布后 version.h
+    - VERSION_EX_PATCH = Recloud 发布号（RecloudN，历史沿革：RecloudN，2026.11 起后缀改为
+      Recloud 且计数延续），发布时由 prepare 递增；发布后 version.h
       停留在最新已发布版本，等下一轮发布再递增。其余宏（MAJOR/MINOR/REVISION/PATCH、
       PRERELEASE_SUFFIX）跟随 upstream，发布流程不碰
-    - zip 名 = Phobos-v{MAJOR.MINOR.REV.PATCH}-Recya{EX_PATCH}.zip；tag = v{...}-Recya{N}
+    - zip 名 = Phobos-v{MAJOR.MINOR.REV.PATCH}-Recloud{EX_PATCH}.zip；tag = v{...}-Recloud{N}
     - 整合包说明/更新改动说明.md 用 `### YYYY.X.XX` 占位小节循环:
       开发期攒条目 -> 发布日回填日期 -> 打包 -> 开下一轮占位小节
-      占位小节标题里的目标版本（`RecyaN -> RecyaN+1`）须与 EX_PATCH+1 一致（脚本互校）
+      占位小节标题里的目标版本（`RecloudN -> RecloudN+1`）须与 EX_PATCH+1 一致（脚本互校）
     - zip 内文档由 pack 自动剔除占位小节生成干净快照，故 pack 必须在 prepare 之后
-    - 不碰 PRERELEASE_SUFFIX（upstream 的 alpha 标记与 Recya 版本无关）
+    - 不碰 PRERELEASE_SUFFIX（upstream 的 alpha 标记与 Recloud 版本无关）
 
 写操作均支持 --dry-run。
 """
@@ -93,11 +94,11 @@ def long_str(v):
 
 
 def recya(v):
-    return f"v{long_str(v)}-Recya{v['EX_PATCH']}"
+    return f"v{long_str(v)}-Recloud{v['EX_PATCH']}"
 
 
 def zip_name(v):
-    return f"Phobos-v{long_str(v)}-Recya{v['EX_PATCH']}.zip"
+    return f"Phobos-v{long_str(v)}-Recloud{v['EX_PATCH']}.zip"
 
 
 def bump_ex_patch(new_val, dry=False):
@@ -174,9 +175,9 @@ def strip_placeholder_sections(text):
 def cmd_check(args):
     v = read_version()
     lines = load_changelog().split('\n')
-    info(f'当前版本号 : {long_str(v)}-Recya{v["EX_PATCH"]}   (PRERELEASE_SUFFIX={v["PRERELEASE"]!r}, 不参与 Recya 版本)')
+    info(f'当前版本号 : {long_str(v)}-Recloud{v["EX_PATCH"]}   (PRERELEASE_SUFFIX={v["PRERELEASE"]!r}, 不参与 Recloud 版本)')
     next_v = dict(v, EX_PATCH=v['EX_PATCH'] + 1)
-    info(f'下一版     : {long_str(v)}-Recya{v["EX_PATCH"] + 1} -> zip: Release/{zip_name(next_v)}')
+    info(f'下一版     : {long_str(v)}-Recloud{v["EX_PATCH"] + 1} -> zip: Release/{zip_name(next_v)}')
     i = find_placeholder(lines)
     if i >= 0:
         entries = placeholder_entries(lines, i)
@@ -244,12 +245,12 @@ def cmd_prepare(args):
     m = re.match(r'^### \d{4}\.X\.XX\s+`Phobos v([\w.\-]+)`\s*->\s*`Phobos v([\w.\-]+)`\s*$', lines[i])
     if not m:
         die(f'占位小节标题格式无法解析: {lines[i].strip()!r}\n期望: ### YYYY.X.XX  `Phobos v旧` -> `Phobos v新`')
-    expect_next = f"{long_str(v)}-Recya{v['EX_PATCH'] + 1}"
+    expect_next = f"{long_str(v)}-Recloud{v['EX_PATCH'] + 1}"
     if m.group(2) != expect_next:
         die(f"占位小节目标版本 {m.group(2)} 与 version.h 推导的下一版 {expect_next} 不一致")
     today = datetime.date.today()
     new_head = re.sub(r'^### \d{4}\.X\.XX', f'### {today.year}.{today.month}.{today.day}', lines[i])
-    info(f'发布 {long_str(v)}-Recya{v["EX_PATCH"]} -> {long_str(v)}-Recya{v["EX_PATCH"] + 1}，日期 {today.year}.{today.month}.{today.day}')
+    info(f'发布 {long_str(v)}-Recloud{v["EX_PATCH"]} -> {long_str(v)}-Recloud{v["EX_PATCH"] + 1}，日期 {today.year}.{today.month}.{today.day}')
     info(f'  回填: {lines[i].strip()}')
     info(f'   ->   {new_head.strip()}')
     if args.dry_run:
@@ -294,7 +295,7 @@ def cmd_build(args):
 
 def _gbk_zip_patch():
     """让 zipfile 以 GBK 编码写中文文件名且不设 UTF-8 flag，复刻参考包
-    （Phobos-v0.5.0.0-Recya1.zip 是 Windows 资源管理器/WinRAR 式 GBK 名 zip，
+    （历史参考包 Phobos-v0.5.0.0-Recya1.zip 是 Windows 资源管理器/WinRAR 式 GBK 名 zip，
     这样老版本 Windows 内置解压也不会乱码）。返回恢复函数。
 
     注意 Python 3.13 起 ZipFile._open_to_write 会无条件把 flag_bits 置成
@@ -318,7 +319,7 @@ def cmd_pack(args):
     lines = load_changelog().split('\n')
     # 快照校验：不允许存在"指向本次发布版本"的占位小节（说明本次还没 prepare）。
     # 下一轮的占位小节（目标版本更新的）无妨，打包时会自动剔除。
-    this_target = f'{long_str(v)}-Recya{v["EX_PATCH"]}'
+    this_target = f'{long_str(v)}-Recloud{v["EX_PATCH"]}'
     for l in lines:
         if PLACEHOLDER_HEAD.match(l):
             m = re.search(r'->\s*`Phobos v([\w.\-]+)`', l)
@@ -385,14 +386,14 @@ def cmd_pack(args):
 def cmd_finish(args):
     v = read_version()
     lines = load_changelog().split('\n')
-    this_target = f'{long_str(v)}-Recya{v["EX_PATCH"]}'
+    this_target = f'{long_str(v)}-Recloud{v["EX_PATCH"]}'
     if any(PLACEHOLDER_HEAD.match(l) and re.search(rf'->\s*`Phobos v{re.escape(this_target)}`', l) for l in lines):
         die('仍存在指向本次发布的占位小节，说明尚未 prepare —— finish 只在发布完成后开下一轮占位小节')
     zip_path = RELEASE_DIR / zip_name(v)
     if not zip_path.exists():
         die(f'发布包不存在: {zip_path}（先跑 pack）')
     d = datetime.date.today()
-    old, new = this_target, f"{long_str(v)}-Recya{v['EX_PATCH'] + 1}"
+    old, new = this_target, f"{long_str(v)}-Recloud{v['EX_PATCH'] + 1}"
     head = f'### {d.year}.X.XX  `Phobos v{old}` -> `Phobos v{new}`'
     insert_at = next((k for k, l in enumerate(lines) if VERSIONED_HEAD.match(l)), None)
     if insert_at is None:
