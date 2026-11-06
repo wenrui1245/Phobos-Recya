@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <New/Type/Affiliated/TintTypeClass.h>
 #include <Utilities/Enumerable.h>
@@ -16,6 +16,7 @@ public:
 	Valueable<bool> InheritArmorFromTechno;
 	ValueableVector<TechnoTypeClass*> InheritArmor_Allowed;
 	ValueableVector<TechnoTypeClass*> InheritArmor_Disallowed;
+	Valueable<TechnoTypeClass*> InheritArmor_From;
 	Nullable<bool> ApplyArmorMult;
 	Valueable<bool> Powered;
 	Valueable<double> Respawn;
@@ -73,6 +74,7 @@ public:
 		, InheritArmorFromTechno { false }
 		, InheritArmor_Allowed { }
 		, InheritArmor_Disallowed { }
+		, InheritArmor_From { }
 		, ApplyArmorMult {}
 		, Powered { false }
 		, Respawn { 0.0 }
