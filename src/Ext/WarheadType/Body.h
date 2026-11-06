@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <WarheadTypeClass.h>
 #include <Ext/Techno/Body.h>
 #include <Utilities/Container.h>
@@ -254,6 +254,7 @@ public:
 	Valueable<AffectedVeterancy> AffectsVeterancy;
 
 	Valueable<bool> AffectsNeutral;
+	Valueable<bool> AffectsHarmless;
 	Valueable<bool> AffectsGround;
 	Valueable<bool> AffectsAir;
 	Valueable<bool> CellSpread_Cylinder;
@@ -565,6 +566,7 @@ public:
 		, AffectsAbovePercent { 0.0 }
 		, AffectsVeterancy { AffectedVeterancy::All }
 		, AffectsNeutral { true }
+		, AffectsHarmless { true }
 		, AffectsGround { true }
 		, AffectsAir { true }
 		, CellSpread_Cylinder { false }

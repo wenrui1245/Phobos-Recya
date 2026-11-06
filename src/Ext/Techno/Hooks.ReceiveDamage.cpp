@@ -1,4 +1,4 @@
-﻿#include <Ext/Building/Body.h>
+#include <Ext/Building/Body.h>
 #include <Ext/House/Body.h>
 #include <Ext/InfantryType/Body.h>
 #include <Ext/TEvent/Body.h>
@@ -26,6 +26,7 @@ DEFINE_HOOK(0x701900, TechnoClass_ReceiveDamage_Shield, 0x6)
 	if (!pWHExt->IsHealthInThreshold(pThis)
 	|| !pWHExt->IsVeterancyInThreshold(pThis)
 	|| (!pWHExt->AffectsNeutral && pThis->Owner->IsNeutral())
+	|| (!pWHExt->AffectsHarmless && pThis->GetCurrentMission() == Mission::Harmless)
 	|| !pWHExt->IsInvokerAllowed(pThis, pAttacker))
 	{
 		damage = 0;

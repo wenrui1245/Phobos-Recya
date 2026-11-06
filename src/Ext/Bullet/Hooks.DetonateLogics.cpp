@@ -27,6 +27,7 @@ DEFINE_HOOK(0x4690D4, BulletClass_Logics_NewChecks, 0x6)
 			if (!pExt->IsHealthInThreshold(pTarget)
 				|| !pExt->IsVeterancyInThreshold(pTarget)
 				|| (!pExt->AffectsNeutral && pTarget->Owner->IsNeutral())
+				|| (!pExt->AffectsHarmless && pTarget->GetCurrentMission() == Mission::Harmless)
 				|| !pExt->IsInvokerAllowed(pTarget, pThis->Owner))
 				return GoToExtras;
 		}
