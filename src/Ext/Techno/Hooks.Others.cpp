@@ -1,4 +1,4 @@
-﻿#include "Body.h"
+#include "Body.h"
 
 #include <EventClass.h>
 #include <SpawnManagerClass.h>
@@ -940,9 +940,11 @@ DEFINE_HOOK(0x741925, UnitClass_CrushCell_CrushBuilding, 0x5)
 {
 	GET(UnitClass*, pThis, EDI);
 
-	if (RulesExt::Global()->CrushBuildingOnAnyCell)
+	auto const pCell = CrushBuildingOnAnyCell::pCell;
+
+	if (RulesExt::Global()->CrushBuildingOnAnyCell && pCell && pThis)
 	{
-		if (auto const pBuilding = CrushBuildingOnAnyCell::pCell->GetBuilding())
+		if (auto const pBuilding = pCell->GetBuilding())
 		{
 			if (pBuilding->IsCrushable(pThis))
 			{

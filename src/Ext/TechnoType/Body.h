@@ -580,6 +580,10 @@ public:
 
 	std::vector<LaserTrailDataEntry> LaserTrailData;
 
+	Promotable<int> CrushLevel;
+	Promotable<int> CrushableLevel;
+	Promotable<int> DeployedCrushableLevel;
+
 	Valueable<bool> IgnoredByMouse;
 	Nullable<bool> IgnoredByMouse_ToSelf;
 	Nullable<bool> IgnoredByMouse_ToAlly;
@@ -1168,6 +1172,10 @@ public:
 		, Spawner_RecycleAnim { }
 		, Spawner_RecycleCoord { {0,0,0} }
 		, Spawner_RecycleOnTurret {}
+
+		, CrushLevel { -1 }
+		, CrushableLevel { -1 }
+		, DeployedCrushableLevel { -1 }
 
 		, DefaultVisualCharacter { 0 }
 		, DefaultVisualCharacterToSelf { }

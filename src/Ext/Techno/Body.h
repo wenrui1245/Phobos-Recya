@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <Ext/TechnoType/Body.h>
 #include <Ext/Bullet/Body.h>
@@ -436,6 +436,8 @@ public:
 	static void UpdateAttachedAnimLayers(TechnoClass* pThis);
 	static bool ConvertToType(TechnoClass* pThis, TechnoTypeClass* toType);
 	static bool IsTypeImmune(TechnoClass* pThis, TechnoTypeClass* pType, TechnoClass* pSource);
+	static int GetCrushLevel(FootClass* pThis);
+	static int GetCrushableLevel(TechnoClass* pThis);
 	static int GetTintColor(TechnoClass* pThis, bool invulnerability, bool airstrike, bool berserk);
 	static int GetCustomTintColor(TechnoClass* pThis);
 	static int GetCustomTintIntensity(TechnoClass* pThis);

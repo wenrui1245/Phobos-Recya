@@ -632,6 +632,97 @@ bool TechnoExt::IsTypeImmune(TechnoClass* pThis, TechnoTypeClass* pType, TechnoC
 	return false;
 }
 
+int TechnoExt::GetCrushLevel(FootClass* pThis)
+{
+	const auto pType = pThis->GetTechnoType();
+	const auto pTypeExt = TechnoTypeExt::ExtMap.Find(pType);
+
+	switch (pThis->Veterancy.GetRemainingLevel())
+	{
+	case Rank::Elite:
+		if (pTypeExt->CrushLevel.Elite >= 0)
+			return pTypeExt->CrushLevel.Elite;
+
+	case Rank::Veteran:
+		if (pTypeExt->CrushLevel.Veteran >= 0)
+			return pTypeExt->CrushLevel.Veteran;
+
+	default:
+		if (pTypeExt->CrushLevel.Rookie >= 0)
+			return pTypeExt->CrushLevel.Rookie;
+	}
+
+	if (pType->OmniCrusher)
+		return RulesExt::Global()->OmniCrusherLevel;
+
+	if (pType->Crusher || pThis->HasAbility(Ability::Crusher))
+		return RulesExt::Global()->CrusherLevel;
+
+	return 0;
+}
+
+int TechnoExt::GetCrushableLevel(TechnoClass* pThis)
+{
+	const auto pType = pThis->GetTechnoType();
+	const auto pTypeExt = TechnoTypeExt::ExtMap.Find(pType);
+
+	const auto rank = pThis->Veterancy.GetRemainingLevel();
+	const auto whatAmI = pThis->WhatAmI();
+	const auto pInfantry = whatAmI == AbstractType::Infantry ? static_cast<InfantryClass*>(pThis) : nullptr;
+
+	if (pInfantry && pInfantry->Uncrushable)
+	{
+		switch (rank)
+		{
+		case Rank::Elite:
+			if (pTypeExt->DeployedCrushableLevel.Elite >= 0)
+				return pTypeExt->DeployedCrushableLevel.Elite;
+
+		case Rank::Veteran:
+			if (pTypeExt->DeployedCrushableLevel.Veteran >= 0)
+				return pTypeExt->DeployedCrushableLevel.Veteran;
+
+		default:
+			if (pTypeExt->DeployedCrushableLevel.Rookie >= 0)
+				return pTypeExt->DeployedCrushableLevel.Rookie;
+		}
+
+		if (pInfantry->Type->OmniCrushResistant)
+			return RulesExt::Global()->OmniCrushResistantLevel;
+
+		if (!pInfantry->Type->DeployedCrushable)
+			return RulesExt::Global()->CrushableLevel;
+	}
+	else
+	{
+		switch (rank)
+		{
+		case Rank::Elite:
+			if (pTypeExt->CrushableLevel.Elite >= 0)
+				return pTypeExt->CrushableLevel.Elite;
+
+		case Rank::Veteran:
+			if (pTypeExt->CrushableLevel.Veteran >= 0)
+				return pTypeExt->CrushableLevel.Veteran;
+
+		default:
+			if (pTypeExt->CrushableLevel.Rookie >= 0)
+				return pTypeExt->CrushableLevel.Rookie;
+		}
+
+		if (whatAmI == AbstractType::Building)
+			return RulesExt::Global()->BuildingCrushableLevel.Get(RulesExt::Global()->OmniCrushResistantLevel);
+
+		if (pType->OmniCrushResistant)
+			return RulesExt::Global()->OmniCrushResistantLevel;
+
+		if (!pType->Crushable)
+			return RulesExt::Global()->CrushableLevel;
+	}
+
+	return 0;
+}
+
 // Gets whether or not techno has listed AttachEffect types active on it
 bool TechnoExt::ExtData::HasAttachedEffects(std::vector<AttachEffectTypeClass*> const& attachEffectTypes, bool requireAll, bool ignoreSameSource, bool sameSourceOnly,
 	TechnoClass* pInvoker, AbstractClass* pSource, std::vector<int> const* minCounts, std::vector<int> const* maxCounts, bool requireAnims, AffectedHouse affectedHouse) const
