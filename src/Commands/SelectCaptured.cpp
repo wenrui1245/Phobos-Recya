@@ -1,4 +1,4 @@
-﻿#include "SelectCaptured.h"
+#include "SelectCaptured.h"
 
 #include <Utilities/GeneralUtils.h>
 #include <Utilities/Debug.h>
@@ -67,6 +67,7 @@ void SelectCapturedCommandClass::Execute(WWKey eInput) const
 	}
 	else
 	{
-		MessageListClass::Instance.PrintMessage(StringTable::LoadString("MSG:NothingSelected"), RulesClass::Instance->MessageDelay, HouseClass::CurrentPlayer->ColorSchemeIndex, true);
+		MessageListClass::Instance.PrintMessage(StringTable::LoadString("MSG:NothingSelectedCaptured"), RulesClass::Instance->MessageDelay, HouseClass::CurrentPlayer->ColorSchemeIndex, true);
+		VocClass::PlayGlobal(RulesClass::Instance->SystemError, 0x2000, 1.0f);
 	}
 }
