@@ -3,6 +3,7 @@
 
 #include <BitFont.h>
 #include <Misc/FlyingStrings.h>
+#include <Misc/FoggedVoxel.h>
 #include <Utilities/AresHelper.h>
 
 BuildingExt::ExtContainer BuildingExt::ExtMap;
@@ -700,16 +701,20 @@ void BuildingExt::SaveToStream(PhobosStreamWriter& Stm)
 	this->Serialize(Stm);
 }
 
+void BuildingExt::Clear()
+{
+	FoggedVoxel::Clear();
+	ExtMap.Clear();
+}
+
 bool BuildingExt::LoadGlobals(PhobosStreamReader& Stm)
 {
-	return Stm
-		.Success();
+	return FoggedVoxel::Load(Stm);
 }
 
 bool BuildingExt::SaveGlobals(PhobosStreamWriter& Stm)
 {
-	return Stm
-		.Success();
+	return FoggedVoxel::Save(Stm);
 }
 
 // =============================
@@ -756,6 +761,7 @@ DEFINE_HOOK(0x43C0B6, BuildingClass_DTOR, 0x9)
 {
 	GET(BuildingClass*, pItem, ESI);
 
+	FoggedVoxel::Remove(pItem);
 	BuildingExt::ExtMap.Remove(pItem);
 
 	return 0;
