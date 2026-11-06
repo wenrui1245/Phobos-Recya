@@ -1,4 +1,4 @@
-﻿#include "Body.h"
+#include "Body.h"
 
 #include <Ext/Anim/Body.h>
 #include <Ext/TechnoType/Body.h>
@@ -108,6 +108,7 @@ void AnimTypeExt::LoadFromINIFile(CCINIClass* pINI)
 	this->ExtraShadow.Read(exINI, pID, "ExtraShadow");
 	this->DetachedReport.Read(exINI, pID, "DetachedReport");
 	this->VisibleTo.Read(exINI, pID, "VisibleTo");
+	this->VisibleToObserver.Read(exINI, pID, "VisibleToObserver");
 	this->VisibleTo_ConsiderInvokerAsOwner.Read(exINI, pID, "VisibleTo.ConsiderInvokerAsOwner");
 	this->RestrictVisibilityIfCloaked.Read(exINI, pID, "RestrictVisibilityIfCloaked");
 	this->DetachOnCloak.Read(exINI, pID, "DetachOnCloak");
@@ -182,6 +183,7 @@ void AnimTypeExt::Serialize(T& Stm)
 		.Process(this->ExtraShadow)
 		.Process(this->DetachedReport)
 		.Process(this->VisibleTo)
+		.Process(this->VisibleToObserver)
 		.Process(this->VisibleTo_ConsiderInvokerAsOwner)
 		.Process(this->RestrictVisibilityIfCloaked)
 		.Process(this->DetachOnCloak)

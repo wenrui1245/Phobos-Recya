@@ -1,4 +1,4 @@
-﻿#include "Body.h"
+#include "Body.h"
 
 #include <Ext/Scenario/Body.h>
 #include <Ext/Techno/Body.h>
@@ -534,6 +534,9 @@ DEFINE_HOOK(0x423061, AnimClass_DrawIt_Visibility, 0x6)
 
 	auto pTechno = abstract_cast<TechnoClass*>(pThis->OwnerObject);
 	HouseClass* const pCurrentHouse = HouseClass::CurrentPlayer;
+
+	if (HouseClass::IsCurrentPlayerObserver() && !pTypeExt->VisibleToObserver)
+		return SkipDrawing;
 
 	if (!pTechno)
 	{
