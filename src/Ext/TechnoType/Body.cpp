@@ -1,4 +1,4 @@
-﻿#include <EventClass.h>
+#include <EventClass.h>
 #include <FlyLocomotionClass.h>
 #include <JumpjetLocomotionClass.h>
 
@@ -1127,6 +1127,9 @@ void TechnoTypeExt::LoadFromINIFile(CCINIClass* const pINI)
 	this->OpenTransport_DamageMultiplier.Read(exINI, pSection, "OpenTransport.DamageMultiplier");
 	this->OpenTransport_FireWhileMoving.Read(exINI, pSection, "OpenTransport.FireWhileMoving");
 
+	this->ExtraBunkerDamageMultiplier.Read(exINI, pSection, "ExtraBunkerDamageMultiplier");
+	this->ExtraBunkerROFMultiplier.Read(exINI, pSection, "ExtraBunkerROFMultiplier");
+
 	if (exINI.ReadString(pSection, "AutoFire") > 0)
 	{
 		Debug::Log("[Developer warning][%s] AutoFire is deprecated and has been replaced by AutoTargetOwnPosition! If both are set, the latter will be used.\n", pSection);
@@ -2018,6 +2021,9 @@ void TechnoTypeExt::Serialize(T& Stm)
 		.Process(this->OpenTransport_RangeBonus)
 		.Process(this->OpenTransport_DamageMultiplier)
 		.Process(this->OpenTransport_FireWhileMoving)
+
+		.Process(this->ExtraBunkerDamageMultiplier)
+		.Process(this->ExtraBunkerROFMultiplier)
 
 		.Process(this->AggressiveStance)
 		.Process(this->AggressiveStance_Togglable)
