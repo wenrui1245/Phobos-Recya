@@ -4,6 +4,8 @@
 
 #include <Ext/House/Body.h>
 #include <Misc/Weather.h>
+#include <Ext/HouseType/Body.h>
+#include <Ext/Rules/Body.h>
 #include <HouseClass.h>
 #include <ThemeClass.h>
 #include <Ext/SWType/Body.h>
@@ -205,6 +207,10 @@ void ScenarioExt::ExtData::Serialize(T& Stm)
 		.Process(this->SpecialTracker)
 		.Process(this->FallingDownTracker)
 		.Process(this->EVAIndex)
+		.Process(this->BattleAdvantage_PlayerAdvantage)
+		.Process(this->BattleAdvantage_PlayerDisadvantage)
+		.Process(this->BattleAdvantage_PlayerOverwhelming)
+		.Process(this->BattleAdvantage_PlayerStatus)
 		.Process(this->FiringAnimUpdateCount)
 		.Process(this->MissionTimer_Type)
 		.Process(this->MissionTimer_Variable)
@@ -238,6 +244,10 @@ DEFINE_HOOK(0x683549, ScenarioClass_CTOR, 0x9)
 	ScenarioExt::Global()->Waypoints.clear();
 	ScenarioExt::Global()->Variables[0].clear();
 	ScenarioExt::Global()->Variables[1].clear();
+	ScenarioExt::Global()->BattleAdvantage_PlayerAdvantage = 0.0f;
+	ScenarioExt::Global()->BattleAdvantage_PlayerDisadvantage = 0.0f;
+	ScenarioExt::Global()->BattleAdvantage_PlayerOverwhelming = 0.0f;
+	ScenarioExt::Global()->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Normal;
 	ScenarioExt::Global()->TriggerTypePlayerAtXOwners.clear();
 
 	return 0;
@@ -351,6 +361,106 @@ DEFINE_HOOK(0x55B4E1, LogicClass_Update_BeforeAll, 0x5)
 				swExt.MusicTimer.Stop();
 				swExt.MusicActive = false;
 			}
+		}
+	}
+
+	// Battle Advantage decay
+	auto const pRulesExt = RulesExt::Global();
+
+	if (pRulesExt->BattleAdvantage_Enabled)
+	{
+		auto const pScenarioExt = ScenarioExt::Global();
+		auto const advantagedecayRate = pRulesExt->BattleAdvantage_AdvantageDecayRate;
+		auto const disadvantageDecayRate = pRulesExt->BattleAdvantage_DisadvantageDecayRate;
+		auto const overwhelmingDecayRate = pRulesExt->BattleAdvantage_OverwhelmingDecayRate;
+
+		auto const intensityUpperThreshold = pRulesExt->BattleAdvantage_IntensityUpperThreshold;
+		auto const intensityLowerThreshold = pRulesExt->BattleAdvantage_IntensityLowerThreshold;
+		auto const casualtyRatioUpperThreshold = pRulesExt->BattleAdvantage_CasualtyRatioUpperThreshold;
+		auto const casualtyRatioLowerThreshold = pRulesExt->BattleAdvantage_CasualtyRatioLowerThreshold;
+
+		auto const overwhelmingUpperThreshold = pRulesExt->BattleAdvantage_OverwhelmingUpperThreshold;
+		auto const overwhelmingLowerThreshold = pRulesExt->BattleAdvantage_OverwhelmingLowerThreshold;
+
+		if (pScenarioExt->BattleAdvantage_PlayerAdvantage > 0.0f)
+			pScenarioExt->BattleAdvantage_PlayerAdvantage = std::max(0.0f, pScenarioExt->BattleAdvantage_PlayerAdvantage - advantagedecayRate);
+
+		if (pScenarioExt->BattleAdvantage_PlayerDisadvantage > 0.0f)
+			pScenarioExt->BattleAdvantage_PlayerDisadvantage = std::max(0.0f, pScenarioExt->BattleAdvantage_PlayerDisadvantage - disadvantageDecayRate);
+
+		if (pScenarioExt->BattleAdvantage_PlayerOverwhelming > 0.0f)
+			pScenarioExt->BattleAdvantage_PlayerOverwhelming = std::max(0.0f, pScenarioExt->BattleAdvantage_PlayerOverwhelming - overwhelmingDecayRate);
+
+		//判断当前战场形势
+		auto BattleIntensity = pScenarioExt->BattleAdvantage_PlayerAdvantage + pScenarioExt->BattleAdvantage_PlayerDisadvantage;
+		auto BattleAdvantage = pScenarioExt->BattleAdvantage_PlayerAdvantage / pScenarioExt->BattleAdvantage_PlayerDisadvantage;
+		auto BattleOverwhelming = pScenarioExt->BattleAdvantage_PlayerOverwhelming;
+
+		if (BattleOverwhelming > overwhelmingUpperThreshold && pScenarioExt->BattleAdvantage_PlayerStatus != PlayerAdvantageStatus::Triumphal)
+		{
+			//Debug::Log("[BattleAdvantage] Overwhelming: %.1f. Player is overwhelming.\n", BattleOverwhelming);
+			pScenarioExt->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Triumphal;
+
+			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Trumpet;
+			if (themeIndex >= 0)
+				ThemeClass::Instance.Play(themeIndex);
+		}
+		else if (BattleOverwhelming < overwhelmingLowerThreshold && pScenarioExt->BattleAdvantage_PlayerStatus == PlayerAdvantageStatus::Triumphal)
+		{
+			//Debug::Log("[BattleAdvantage] Overwhelming: %.1f. Player is no longer overwhelming.\n", BattleOverwhelming);
+			pScenarioExt->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Normal;
+
+			pScenarioExt->BattleAdvantage_PlayerAdvantage = 0.0f;
+			pScenarioExt->BattleAdvantage_PlayerDisadvantage = 0.0f;
+
+			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Trumpet;
+			if (themeIndex >= 0)
+				ThemeClass::Instance.Stop(true);
+		}
+		else if (BattleIntensity > intensityUpperThreshold && pScenarioExt->BattleAdvantage_PlayerStatus == PlayerAdvantageStatus::Normal)
+		{
+			//Debug::Log("[BattleAdvantage] BattleIntensity: %.1f, BattleAdvantage: %.1f. Player is at combat.\n", BattleIntensity, BattleAdvantage);
+			pScenarioExt->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Combat;
+
+			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Combat;
+			if (themeIndex >= 0)
+				ThemeClass::Instance.Play(themeIndex);
+		}
+		else if (BattleIntensity < intensityLowerThreshold && pScenarioExt->BattleAdvantage_PlayerStatus == PlayerAdvantageStatus::Combat)
+		{
+			//Debug::Log("[BattleAdvantage] BattleIntensity: %.1f, BattleAdvantage: %.1f. Player is no longer in combat.\n", BattleIntensity, BattleAdvantage);
+			pScenarioExt->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Normal;
+
+			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Combat;
+			if (themeIndex >= 0)
+				ThemeClass::Instance.Stop(true);
+		}
+		else if (BattleIntensity > intensityUpperThreshold && BattleAdvantage < casualtyRatioLowerThreshold && pScenarioExt->BattleAdvantage_PlayerStatus != PlayerAdvantageStatus::Losing && pScenarioExt->BattleAdvantage_PlayerStatus != PlayerAdvantageStatus::Triumphal)
+		{
+			//Debug::Log("[BattleAdvantage] BattleIntensity: %.1f, BattleAdvantage: %.1f. Player is at disadvantage.\n", BattleIntensity, BattleAdvantage);
+			pScenarioExt->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Losing;
+
+			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Losing;
+			if (themeIndex >= 0)
+				ThemeClass::Instance.Play(themeIndex);
+		}
+		else if (BattleIntensity > intensityLowerThreshold && BattleAdvantage > casualtyRatioUpperThreshold && pScenarioExt->BattleAdvantage_PlayerStatus == PlayerAdvantageStatus::Losing)
+		{
+			//Debug::Log("[BattleAdvantage] BattleIntensity: %.1f, BattleAdvantage: %.1f. Player is no longer at disadvantage.\n", BattleIntensity, BattleAdvantage);
+			pScenarioExt->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Combat;
+
+			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Combat;
+			if (themeIndex >= 0)
+				ThemeClass::Instance.Play(themeIndex);
+		}
+		else if (BattleIntensity < intensityLowerThreshold && pScenarioExt->BattleAdvantage_PlayerStatus == PlayerAdvantageStatus::Losing)
+		{
+			//Debug::Log("[BattleAdvantage] BattleIntensity: %.1f, BattleAdvantage: %.1f. Player is no longer at disadvantage (Combat End).\n", BattleIntensity, BattleAdvantage);
+			pScenarioExt->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Normal;
+
+			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Losing;
+			if (themeIndex >= 0)
+				ThemeClass::Instance.Stop(true);
 		}
 	}
 

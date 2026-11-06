@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <HouseTypeClass.h>
 #include <InfantryTypeClass.h>
@@ -28,6 +28,9 @@ public:
 	}
 
 	EVAType EVATag;
+	Valueable<int> Music_Combat;
+	Valueable<int> Music_Losing;
+	Valueable<int> Music_Trumpet;
 	AEAttachInfoTypeClass AttachEffects;
 	Nullable<bool> AttachEffects_AttachOnOwnerChange;
 	Nullable<InfantryTypeClass*> Crew;
@@ -38,6 +41,9 @@ public:
 
 	HouseTypeExt(HouseTypeClass* OwnerObject) : AbstractTypeExt(OwnerObject)
 		, EVATag { -2 }
+		, Music_Combat { -2 }
+		, Music_Losing { -2 }
+		, Music_Trumpet { -2 }
 		, AttachEffects {}
 		, AttachEffects_AttachOnOwnerChange {}
 		, Crew {}

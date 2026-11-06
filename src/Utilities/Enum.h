@@ -1,4 +1,4 @@
-﻿#pragma region Ares Copyrights
+#pragma region Ares Copyrights
 /*
  *Copyright (c) 2008+, All Ares Contributors
  *All rights reserved.
@@ -199,6 +199,14 @@ enum class AutoDeathBehavior
 	Kill = 0,     // default death option
 	Vanish = 1,
 	Sell = 2,     // buildings only
+};
+
+enum class PlayerAdvantageStatus
+{
+	Normal = 0,
+	Combat = 1,
+	Losing = 2,
+	Triumphal = 3,
 };
 
 enum class PowerStatus

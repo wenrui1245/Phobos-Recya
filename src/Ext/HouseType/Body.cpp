@@ -1,4 +1,4 @@
-﻿#include "Body.h"
+#include "Body.h"
 
 #include <Ext/Side/Body.h>
 #include <Utilities/GeneralUtils.h>
@@ -18,6 +18,9 @@ void HouseTypeExt::LoadFromINIFile(CCINIClass* pINI)
 	INI_EX exINI(pINI);
 
 	this->EVATag.Read(pINI, pSection, "EVA.Tag");
+	this->Music_Combat = pINI->ReadTheme(pSection, "Music.Combat", this->Music_Combat);
+	this->Music_Losing = pINI->ReadTheme(pSection, "Music.Losing", this->Music_Losing);
+	this->Music_Trumpet = pINI->ReadTheme(pSection, "Music.Trumpet", this->Music_Trumpet);
 
 	this->AttachEffects.LoadFromINI(pINI, pSection);
 	this->AttachEffects_AttachOnOwnerChange.Read(exINI, pSection, "AttachEffect.AttachOnOwnerChange");
@@ -34,6 +37,9 @@ void HouseTypeExt::Serialize(T& Stm)
 {
 	Stm
 		.Process(this->EVATag)
+		.Process(this->Music_Combat)
+		.Process(this->Music_Losing)
+		.Process(this->Music_Trumpet)
 		.Process(this->AttachEffects)
 		.Process(this->AttachEffects_AttachOnOwnerChange)
 		.Process(this->Crew)

@@ -781,6 +781,152 @@ DEFINE_HOOK(0x702E4E, TechnoClass_RegisterDestruction_SaveKillerInfo, 0x6)
 	if (pKiller && pVictim)
 		TechnoExt::ObjectKilledBy(pVictim, pKiller);
 
+	// Battle Advantage
+	auto const pRulesExt = RulesExt::Global();
+
+	if (pRulesExt->BattleAdvantage_Enabled && pKiller && pVictim)
+	{
+		auto const pCurrentPlayer = HouseClass::CurrentPlayer;
+
+		if (pCurrentPlayer)
+		{
+			auto const pKillerOwner = pKiller->Owner;
+			auto const pVictimOwner = pVictim->Owner;
+			auto const pNeutral = HouseClass::FindNeutral();
+
+			if (pKillerOwner && pVictimOwner && pKillerOwner != pVictimOwner && pVictimOwner != pNeutral)
+			{
+				auto const pScenarioExt = ScenarioExt::Global();
+				auto const pVictimTypeExt = TechnoTypeExt::ExtMap.Find(pVictim->GetTechnoType());
+
+				auto const getLostValue = [&]() -> float
+					{
+						return pVictimTypeExt->BattleAdvantage_LostValue.Get(static_cast<float>(pVictim->GetTechnoType()->Points));
+					};
+				auto const getKillingValue = [&]() -> float
+					{
+						return pVictimTypeExt->BattleAdvantage_KillingValue.Get(static_cast<float>(pVictim->GetTechnoType()->Points));
+					};
+				auto const getOverwhelmingValue = [&]() -> float
+					{
+						return pVictimTypeExt->BattleAdvantage_OverwhelmingValue;
+					};
+				auto const getVeterancyMultiplier = [&](bool isLost) -> float
+					{
+						auto const vetLevel = pVictim->Veterancy.GetRemainingLevel();
+
+						if (vetLevel == Rank::Veteran)
+						{
+							if (isLost)
+								return pVictimTypeExt->BattleAdvantage_VeteranLostMultiplier.Get(pRulesExt->BattleAdvantage_VeteranLostMultiplier);
+							else
+								return pVictimTypeExt->BattleAdvantage_VeteranKillingMultiplier.Get(pRulesExt->BattleAdvantage_VeteranKillingMultiplier);
+						}
+						else if (vetLevel == Rank::Elite)
+						{
+							if (isLost)
+								return pVictimTypeExt->BattleAdvantage_EliteLostMultiplier.Get(pRulesExt->BattleAdvantage_EliteLostMultiplier);
+							else
+								return pVictimTypeExt->BattleAdvantage_EliteKillingMultiplier.Get(pRulesExt->BattleAdvantage_EliteKillingMultiplier);
+						}
+
+						return 1.0f;
+					};
+
+				auto const getMindControlledMultiplier = [&](bool isLost) -> float
+					{
+						if (!pVictim->IsMindControlled())
+							return 1.0f;
+
+						if (isLost)
+							return pVictimTypeExt->BattleAdvantage_MindControlledLostMultiplier.Get(pRulesExt->BattleAdvantage_MindControlledLostMultiplier);
+						else
+							return pVictimTypeExt->BattleAdvantage_MindControlledKillingMultiplier.Get(pRulesExt->BattleAdvantage_MindControlledKillingMultiplier);
+					};
+
+
+				auto const maxAdvantageValue = pRulesExt->BattleAdvantage_AdvantageMaxValue.Get();
+				auto const maxDisadvantageValue = pRulesExt->BattleAdvantage_DisadvantageMaxValue.Get();
+
+				auto const maxOverwhelmingValue = pRulesExt->BattleAdvantage_OverwhelmingMaxValue.Get();
+
+				// Player lost a unit
+				if (pVictimOwner == pCurrentPlayer && !pCurrentPlayer->IsAlliedWith(pKillerOwner))
+				{
+					if (getLostValue() != 0)
+					{
+						auto const mult = getVeterancyMultiplier(true) * getMindControlledMultiplier(true);
+						auto const newValue = std::min(maxDisadvantageValue, pScenarioExt->BattleAdvantage_PlayerDisadvantage + getLostValue() * mult);
+						const char* vetName = "Unknown";
+
+						switch (static_cast<int>(pVictim->Veterancy.GetRemainingLevel()))
+						{
+						case 0:
+							vetName = "Elite";
+							break;
+						case 1:
+							vetName = "Veteran";
+							break;
+						case 2:
+							vetName = "Rookie";
+							break;
+						}
+
+						/*Debug::Log("[BattleAdvantage] PlayerDisadvantage: %.1f -> %.1f (lost [%s] vet: %s to enemy [%s] at frame %d, mult=%.1f)\n",
+							pScenarioExt->BattleAdvantage_PlayerDisadvantage, newValue,
+							pVictim->GetTechnoType()->ID, vetName,
+							pKillerOwner->Type->ID, Unsorted::CurrentFrame, mult);*/
+
+						pScenarioExt->BattleAdvantage_PlayerDisadvantage = newValue;
+					}
+				}
+				// Player killed an enemy unit
+				else if (pKillerOwner == pCurrentPlayer && !pCurrentPlayer->IsAlliedWith(pVictimOwner))
+				{
+
+					if (getKillingValue() != 0)
+					{
+						auto const mult = getVeterancyMultiplier(false) * getMindControlledMultiplier(false);
+						auto const newValue = std::min(maxAdvantageValue, pScenarioExt->BattleAdvantage_PlayerAdvantage + getKillingValue() * (1.0f + mult));
+						const char* vetName = "Unknown";
+
+						switch (static_cast<int>(pVictim->Veterancy.GetRemainingLevel()))
+						{
+						case 0:
+							vetName = "Elite";
+							break;
+						case 1:
+							vetName = "Veteran";
+							break;
+						case 2:
+							vetName = "Rookie";
+							break;
+						}
+
+						/*Debug::Log("[BattleAdvantage] PlayerAdvantage: %.1f -> %.1f (killed enemy [%s] vet: %s at frame %d, mult=%.1f)\n",
+							pScenarioExt->BattleAdvantage_PlayerAdvantage, newValue,
+							pVictim->GetTechnoType()->ID, vetName,
+							Unsorted::CurrentFrame, mult);*/
+
+						pScenarioExt->BattleAdvantage_PlayerAdvantage = newValue;
+					}
+
+					if (getOverwhelmingValue() != 0)
+					{
+						auto const newValue2 = std::min(maxOverwhelmingValue, pScenarioExt->BattleAdvantage_PlayerOverwhelming + getOverwhelmingValue());
+
+						/*Debug::Log("[BattleAdvantage] PlayerOverwhelming: %.1f -> %.1f (killed enemy: %s at frame %d)\n",
+							pScenarioExt->BattleAdvantage_PlayerOverwhelming, newValue2,
+							pVictim->GetTechnoType()->ID,
+							Unsorted::CurrentFrame);*/
+
+						pScenarioExt->BattleAdvantage_PlayerOverwhelming = newValue2;
+					}
+				}
+			}
+		}
+	}
+
 	// Drop crate if is dead
 	const int nSelectedPowerup = TechnoExt::GetDropCrateIndex(pVictim);
 

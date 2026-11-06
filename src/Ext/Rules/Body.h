@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <Utilities/Container.h>
 #include <Utilities/TemplateDef.h>
@@ -673,6 +673,31 @@ public:
 		Valueable<DynamicTeamDelayType> TeamDelays_DynamicType;
 		Valueable<Vector3D<int>> TeamDelays_Count[8];
 
+		Valueable<bool> BattleAdvantage_Enabled;
+		Valueable<float> BattleAdvantage_AdvantageMaxValue;
+		Valueable<float> BattleAdvantage_AdvantageDecayRate;
+
+		Valueable<float> BattleAdvantage_DisadvantageMaxValue;
+		Valueable<float> BattleAdvantage_DisadvantageDecayRate;
+
+		Valueable<float> BattleAdvantage_IntensityUpperThreshold;
+		Valueable<float> BattleAdvantage_IntensityLowerThreshold;
+		Valueable<float> BattleAdvantage_CasualtyRatioUpperThreshold;
+		Valueable<float> BattleAdvantage_CasualtyRatioLowerThreshold;
+
+		Valueable<float> BattleAdvantage_OverwhelmingMaxValue;
+		Valueable<float> BattleAdvantage_OverwhelmingDecayRate;
+		Valueable<float> BattleAdvantage_OverwhelmingUpperThreshold;
+		Valueable<float> BattleAdvantage_OverwhelmingLowerThreshold;
+
+		Valueable<float> BattleAdvantage_VeteranLostMultiplier;
+		Valueable<float> BattleAdvantage_EliteLostMultiplier;
+		Valueable<float> BattleAdvantage_VeteranKillingMultiplier;
+		Valueable<float> BattleAdvantage_EliteKillingMultiplier;
+
+		Valueable<float> BattleAdvantage_MindControlledLostMultiplier;
+		Valueable<float> BattleAdvantage_MindControlledKillingMultiplier;
+
 		Valueable<Mission> BerzerkMission;
 
 		Valueable<int> BunkerStateUpdateDelay;
@@ -1345,6 +1370,31 @@ public:
 
 			, TeamDelays_DynamicType { DynamicTeamDelayType::StartingPoint }
 			, TeamDelays_Count {}
+
+			, BattleAdvantage_Enabled { false }
+			, BattleAdvantage_AdvantageMaxValue { 1000.0f }
+			, BattleAdvantage_AdvantageDecayRate { 0.01f }
+
+			, BattleAdvantage_DisadvantageMaxValue { 1000.0f }
+			, BattleAdvantage_DisadvantageDecayRate { 0.01f }
+
+			, BattleAdvantage_IntensityUpperThreshold { 3000.0f }
+			, BattleAdvantage_IntensityLowerThreshold { 100.0f }
+			, BattleAdvantage_CasualtyRatioUpperThreshold { 2.0f }
+			, BattleAdvantage_CasualtyRatioLowerThreshold { 1.3f }
+
+			, BattleAdvantage_OverwhelmingMaxValue { 1000.0f }
+			, BattleAdvantage_OverwhelmingDecayRate { 0.01f }
+			, BattleAdvantage_OverwhelmingUpperThreshold { 100.0f }
+			, BattleAdvantage_OverwhelmingLowerThreshold { 0.01f }
+
+			, BattleAdvantage_VeteranLostMultiplier { 1.0f }
+			, BattleAdvantage_EliteLostMultiplier { 1.0f }
+			, BattleAdvantage_VeteranKillingMultiplier { 1.0f }
+			, BattleAdvantage_EliteKillingMultiplier { 1.0f }
+
+			, BattleAdvantage_MindControlledLostMultiplier { 1.0f }
+			, BattleAdvantage_MindControlledKillingMultiplier { 1.0f }
 
 			, BerzerkMission { Mission::Hunt }
 
