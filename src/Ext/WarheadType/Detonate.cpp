@@ -1,4 +1,4 @@
-﻿#include "Body.h"
+#include "Body.h"
 
 #include <Ext/Anim/Body.h>
 #include <Ext/SWType/Body.h>
@@ -11,6 +11,7 @@
 #include <JumpjetLocomotionClass.h>
 #include <Locomotion/AStar/AStarClass.h>
 #include <cmath>
+#include <ThemeClass.h>
 
 #pragma region CreateGap Calls
 

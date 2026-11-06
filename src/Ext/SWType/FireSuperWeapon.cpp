@@ -1,10 +1,11 @@
-﻿#include "Body.h"
+#include "Body.h"
 
 #include <Ext/House/Body.h>
 #include <Ext/WarheadType/Body.h>
 #include <Ext/WeaponType/Body.h>
 #include <Ext/Scenario/Body.h>
 #include <Utilities/Helpers.Alex.h>
+#include <ThemeClass.h>
 
 #include <unordered_set>
 
@@ -46,6 +47,23 @@ void SWTypeExt::FireSuperWeaponExt(SuperClass* pSW, const CellStruct& cell)
 
 	auto& sw_ext = HouseExt::Fetch(pHouse)->SuperExts[pType->ArrayIndex];
 	sw_ext.ShotCount++;
+
+	// Music: play theme and start timer if configured
+	if (pTypeExt->Music_Theme.Get() >= 0)
+	{
+		const auto affected = pTypeExt->Music_AffectedHouses.Get();
+		if (EnumFunctions::CanTargetHouse(affected, pHouse, HouseClass::CurrentPlayer))
+		{
+			ThemeClass::Instance.Play(pTypeExt->Music_Theme);
+		}
+
+		const int duration = pTypeExt->Music_Duration.Get();
+		if (duration > 0)
+		{
+			sw_ext.MusicTimer.Start(duration);
+			sw_ext.MusicActive = true;
+		}
+	}
 
 	const auto pTags = &pHouse->RelatedTags;
 

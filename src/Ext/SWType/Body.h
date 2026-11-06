@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <Ext/Building/Body.h>
 #include <Utilities/Container.h>
 #include <Utilities/TemplateDef.h>
@@ -70,6 +70,9 @@ public:
 	ValueableVector<int> LimboKill_IDs;
 	ValueableVector<int> LimboKill_Counts;
 	Valueable<double> RandomBuffer;
+	Valueable<int> Music_Theme;
+	Valueable<int> Music_Duration;
+	Valueable<AffectedHouse> Music_AffectedHouses;
 	ValueableIdxVector<SuperWeaponTypeClass> SW_Next;
 	Valueable<bool> SW_Next_RealLaunch;
 	Valueable<bool> SW_Next_IgnoreInhibitors;
@@ -211,6 +214,7 @@ public:
 		, SW_Link_RandomWeightsData {}
 		, Message_LinkedSWAcquired {}
 		, EVA_LinkedSWAcquired {}
+		, Music_AffectedHouses { AffectedHouse::All }
 		, Message_Activated_Owner {}
 		, Message_Activated_Allies {}
 		, Message_Activated_Enemies {}
