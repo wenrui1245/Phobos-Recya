@@ -187,6 +187,9 @@ public:
 		static int CustomGS_ChangeInterval[7];
 		static int CustomGS_ChangeDelay[7];
 		static int CustomGS_DefaultDelay[7];
+		// 运行时状态：右键当前是否按下（由 ScrollClass 按键钩子维护），
+		// 用于让 PlaceBuilding.Extra 的形态切换只响应左键
+		static bool RightMouseDown;
 	};
 
 	class Optimizations

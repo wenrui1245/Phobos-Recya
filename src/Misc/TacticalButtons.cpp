@@ -1400,6 +1400,8 @@ DEFINE_HOOK(0x69330E, ScrollClass_WindowsProcedure_PressRightMouseButton, 0x6)
 {
 	enum { SkipGameCode = 0x69334A };
 
+	Phobos::Misc::RightMouseDown = true;
+
 	const auto pButtons = &TacticalButtonsClass::Instance;
 
 	if (!pButtons->MouseIsOverTactical())
@@ -1416,6 +1418,8 @@ DEFINE_HOOK(0x69330E, ScrollClass_WindowsProcedure_PressRightMouseButton, 0x6)
 DEFINE_HOOK(0x693397, ScrollClass_WindowsProcedure_ReleaseRightMouseButton, 0x6)
 {
 	enum { SkipGameCode = 0x6933CB };
+
+	Phobos::Misc::RightMouseDown = false;
 
 	const auto pButtons = &TacticalButtonsClass::Instance;
 

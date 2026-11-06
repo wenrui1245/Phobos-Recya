@@ -1148,37 +1148,41 @@ DEFINE_HOOK(0x4A937D, DisplayClass_CallBuildingPlaceCheck_ReplaceBuildingType, 0
 		else // bp
 			R->EBP(pDisplay->CurrentFoundation_CenterCell.X);
 
-		const auto delta = cell - pDisplay->CurrentFoundation_CenterCell;
-
-		if (delta.Y || delta.X)
-			Phobos::Config::CurrentPlacingDirection = DirStruct(Math::atan2(-delta.Y, delta.X)).GetFacing<32>();
-
-		auto getAnotherPlacingType = [pDisplay, pTypeExt]() -> BuildingTypeClass*
+		// 形态切换只响应左键：右键按下期间不更新方向、不切换变体
+		if (!Phobos::Misc::RightMouseDown)
 		{
-			if (pTypeExt)
+			const auto delta = cell - pDisplay->CurrentFoundation_CenterCell;
+
+			if (delta.Y || delta.X)
+				Phobos::Config::CurrentPlacingDirection = DirStruct(Math::atan2(-delta.Y, delta.X)).GetFacing<32>();
+
+			auto getAnotherPlacingType = [pDisplay, pTypeExt]() -> BuildingTypeClass*
 			{
-				const auto pCenterCell = MapClass::Instance.GetCellAt(pDisplay->CurrentFoundation_CenterCell);
-				const bool onWater = pCenterCell->LandType == LandType::Water;
-				return pTypeExt->GetAnotherPlacingType(Phobos::Config::CurrentPlacingDirection, onWater);
+				if (pTypeExt)
+				{
+					const auto pCenterCell = MapClass::Instance.GetCellAt(pDisplay->CurrentFoundation_CenterCell);
+					const bool onWater = pCenterCell->LandType == LandType::Water;
+					return pTypeExt->GetAnotherPlacingType(Phobos::Config::CurrentPlacingDirection, onWater);
+				}
+
+				return nullptr;
+			};
+
+			if (const auto pAnotherType = getAnotherPlacingType())
+			{
+				if (pDisplay->CurrentBuildingType && pDisplay->CurrentBuildingType != pAnotherType)
+				{
+					pDisplay->CurrentBuildingType = pAnotherType;
+					pDisplay->SetActiveFoundation(pAnotherType->GetFoundationData(true));
+				}
 			}
-
-			return nullptr;
-		};
-
-		if (const auto pAnotherType = getAnotherPlacingType())
-		{
-			if (pDisplay->CurrentBuildingType && pDisplay->CurrentBuildingType != pAnotherType)
+			else if (pCurrentBuilding)
 			{
-				pDisplay->CurrentBuildingType = pAnotherType;
-				pDisplay->SetActiveFoundation(pAnotherType->GetFoundationData(true));
-			}
-		}
-		else if (pCurrentBuilding)
-		{
-			if (pDisplay->CurrentBuildingType && pDisplay->CurrentBuildingType != pCurrentBuilding->Type)
-			{
-				pDisplay->CurrentBuildingType = pCurrentBuilding->Type;
-				pDisplay->SetActiveFoundation(pCurrentBuilding->Type->GetFoundationData(true));
+				if (pDisplay->CurrentBuildingType && pDisplay->CurrentBuildingType != pCurrentBuilding->Type)
+				{
+					pDisplay->CurrentBuildingType = pCurrentBuilding->Type;
+					pDisplay->SetActiveFoundation(pCurrentBuilding->Type->GetFoundationData(true));
+				}
 			}
 		}
 	}
