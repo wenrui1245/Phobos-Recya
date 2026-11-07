@@ -582,6 +582,12 @@ void RulesExt::ExtData::LoadBeforeTypeData(RulesClass* pThis, CCINIClass* pINI)
 
 	this->AIAdjacentMax.Read(exINI, GameStrings::AI, "AIAdjacentMax");
 	this->AIAdjacentMax_Campaign.Read(exINI, GameStrings::AI, "AIAdjacentMax.Campaign");
+	this->AIBuildingPlacementFailureLimit.Read(exINI, GameStrings::AI, "AI.BuildingPlacementFailureLimit");
+	this->AIPlacementFallbackSearch.Read(exINI, GameStrings::AI, "AI.PlacementFallbackSearch");
+	this->AIPlacementFallbackSearchRadius.Read(exINI, GameStrings::AI, "AI.PlacementFallbackSearchRadius");
+	this->AIPlacementFallbackSearchRadius =
+		Math::clamp(this->AIPlacementFallbackSearchRadius.Get(), 1, 32);
+	this->AIAircraftDockGate.Read(exINI, GameStrings::AI, "AI.AircraftDockGate");
 
 	this->Parasite_GrappleAnim.Read(exINI, GameStrings::AudioVisual, "Parasite.GrappleAnim");
 	this->Parasite_AllowWaterExit.Read(exINI, GameStrings::General, "Parasite.AllowWaterExit");
@@ -1320,6 +1326,10 @@ void RulesExt::ExtData::Serialize(T& Stm)
 		.Process(this->ExtraSight)
 		.Process(this->AIAdjacentMax)
 		.Process(this->AIAdjacentMax_Campaign)
+		.Process(this->AIBuildingPlacementFailureLimit)
+		.Process(this->AIPlacementFallbackSearch)
+		.Process(this->AIPlacementFallbackSearchRadius)
+		.Process(this->AIAircraftDockGate)
 		.Process(this->Parasite_GrappleAnim)
 		.Process(this->Parasite_AllowWaterExit)
 		.Process(this->InfantryAutoDeploy)

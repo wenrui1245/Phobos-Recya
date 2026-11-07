@@ -493,6 +493,28 @@ public:
 		Valueable<int> AIAdjacentMax;
 		Nullable<int> AIAdjacentMax_Campaign;
 
+		// AI 主建筑产线放置失败降级上限（[AI]AI.BuildingPlacementFailureLimit）。
+		// 一个基地节点累计这么多次放置失败（找不到落点/落位被永久阻挡）后，
+		// 从建造队列中移除该节点并弃单，让 AI 继续建造后续节点。0 = 关闭，
+		// 仅保留原版 MaximumBuildingPlacementFailures 的窄口径行为。
+		Valueable<int> AIBuildingPlacementFailureLimit;
+
+		// AI 兜底落位搜索（[AI]AI.PlacementFallbackSearch）。
+		// GetCoordFromBaseCenter 找不到落点时，改为围绕基地中心做稠密螺旋
+		// 搜索（判定与原生完全一致：IsBuildableCell+CanCreateHere+高度差<3
+		// +IsBaseSpacer），小地图上让 AI 尽量把建筑放下而不是卡死。
+		Valueable<bool> AIPlacementFallbackSearch;
+
+		// 兜底搜索最大半径（格，[AI]AI.PlacementFallbackSearchRadius），
+		// 以基地中心为圆心的螺旋环数上限，1-32。
+		Valueable<int> AIPlacementFallbackSearchRadius;
+
+		// AI 飞机生产停机坪门控（[AI]AI.AircraftDockGate）。开启后，
+		// AIAircraftProduction 在机型 Dock 列表对应的本方 pad 无空闲 dock
+		// 时跳过该机型，不再无限生产无法停靠的飞机。Dock 列表为空的机型
+		// 不受影响。
+		Valueable<bool> AIAircraftDockGate;
+
 		NullableIdx<AnimTypeClass> Parasite_GrappleAnim;
 		Nullable<bool> Parasite_AllowWaterExit;
 
@@ -1168,6 +1190,13 @@ public:
 
 			, AIAdjacentMax { -1 }
 			, AIAdjacentMax_Campaign {}
+
+			, AIBuildingPlacementFailureLimit { 8 }
+
+			, AIPlacementFallbackSearch { true }
+			, AIPlacementFallbackSearchRadius { 10 }
+
+			, AIAircraftDockGate { true }
 
 			, Parasite_GrappleAnim {}
 			, Parasite_AllowWaterExit {}

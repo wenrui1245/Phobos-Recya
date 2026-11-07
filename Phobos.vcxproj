@@ -136,6 +136,8 @@
     <ClCompile Include="src\Ext\House\Body.cpp" />
     <ClCompile Include="src\Ext\House\Hooks.AINavalProduction.cpp" />
     <ClCompile Include="src\Ext\House\Hooks.AIDualBuildingProduction.cpp" />
+    <ClCompile Include="src\Ext\House\Hooks.AIBuildingPlacementFailover.cpp" />
+    <ClCompile Include="src\Ext\House\Hooks.AIAircraftDockGate.cpp" />
     <ClCompile Include="src\Ext\House\Hooks.cpp" />
     <ClCompile Include="src\Ext\House\Hooks.ForceEnemy.cpp" />
     <ClCompile Include="src\Ext\House\Hooks.UnitFromFactory.cpp" />
