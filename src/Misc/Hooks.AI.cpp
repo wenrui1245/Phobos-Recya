@@ -1325,6 +1325,17 @@ DEFINE_HOOK(0x4D1B2E, FoggedObjectClass_DrawFoggedObjects_DrawTerrain, 0x6)
 			point.Y -= 16;
 		}
 
+		// ZBuffer 按战术区矩形分配，而这里的裁剪 bounds 可能与其失配；迷雾遍历全图
+		// 冻结记录并依赖 DrawSHP 的 bounds 裁剪拒绝屏外内容，投影矩形一旦超出目标
+		// surface，Z/ABuffer 游标会越过缓冲尾访问未提交页（snapshot-20261107-145911：
+		// 越过缓冲尾 0x97C8 字节）。绘制前与 DSurface::Temp 的真实矩形求交，完全在
+		// 外则跳过该记录；相交时裁剪后的行起点必然落在缓冲内，正常记录零影响。
+		if (point.X >= DSurface::Temp->Width || point.Y >= DSurface::Temp->Height
+			|| point.X + pImage->Width <= 0 || point.Y + pImage->Height <= 0)
+		{
+			return SkipGameCode;
+		}
+
 		DSurface::Temp->DrawSHP(pPalette, pImage, drawFrame, &point, pBounds, BlitterFlags(0x4E00), 0, zAdjust - 4, ZGradient::Deg90, intensity, 0, 0, 0, 0, 0);
 		if (Game::bDrawShadow)
 			DSurface::Temp->DrawSHP(pPalette, pImage, shadowFrame, &point, pBounds, BlitterFlags(0x4601), 0, zAdjust - 2, ZGradient::Ground, 1000, 0, 0, 0, 0, 0);
