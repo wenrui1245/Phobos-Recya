@@ -456,7 +456,7 @@ This page lists all the individual contributions to the project by their author.
   - Customized transport plane for teams
   - Fix the bug where *Customizable crew type per country* overrides the pre-techno settings
   - Enter the grinder voice
-  - Customize the country displayed in `Sight`
+  - Customize who sees the map revealed by `Sight`
   - The parachute animation supports `ShouldUseCellDrawer=no` to remove the hard-coded requirement to use the owner's color palette, while inheriting the animation owner's current country
   - New `NoAmmoWeapons` tag supporting multiple weapon types
   - Fix an issue in Ares where vehicles would occasionally continue to fire and move even after the driver had been killed
@@ -688,7 +688,7 @@ This page lists all the individual contributions to the project by their author.
   - Exclusive SuperWeapon Sidebar
   - Fix an issue that the widespread damage caused by detonation on the bridge/ground cannot affect objects on the ground/bridge who are in the opposite case
   - Several new Infotypes, no display in specific status and a new single frame display method
-  - Customizable spawn delay of `VoxelAnim`'s `TrailerAnim` and fix its incorrect position
+  - Customizable spawn delay of VoxelAnim's `TrailerAnim` and fix its incorrect position
   - Add `DebrisMinimums` to keep the count of debris within a certain range
   - Task subtitles display in the middle of the screen
   - Fix an issue that `MovementZone=Fly` harvesters can not be able to enter refinery buildings manually
@@ -800,6 +800,8 @@ This page lists all the individual contributions to the project by their author.
   - Fix the bug where the fix for airborne objects triggering sinking misjudged units with `Locomotor=Hover`
   - Fix `HealBase` crates causing full-health objects to scatter
   - Preserve whitespace in CSF
+  - Fix inconsistent damage scaling for negative `PowerPlantEnhancer.Factor` values
+  - Fix the options menu reopening after leaving frame-by-frame mode if it had been opened while stepping
 - **Ollerus**:
   - Build limit group enhancement
   - Customizable rocker amplitude
@@ -1016,7 +1018,7 @@ This page lists all the individual contributions to the project by their author.
   - Detonate ivan bomb on impact
   - Allow Ares Academy add country-level filters
   - Fix the bug that infantry weapons with both `LimboLaunch=yes` and ammunition logic could not set ReloadTimer properly
-  - Fixed a bug where units that have `MinDebris` and `MaxDebris` defined but `DebrisTypes` undefined would unconditionally spawn `MetallicDebris` once when they die
+  - Fix a bug where units that have `MinDebris` and `MaxDebris` defined but `DebrisTypes` undefined would unconditionally spawn `MetallicDebris` once when they die
   - Customize whether negative damage penetrates Iron Curtain and Force Shield
 - **Krisztiaan** - Fix mission restart crashes caused by freeing cached TerrainType SHP images
 - **JerryDing07**:

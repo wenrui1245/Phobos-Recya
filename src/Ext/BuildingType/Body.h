@@ -435,7 +435,9 @@ public:
 
 	static CellStruct GetWeaponFactoryDoor(BuildingClass* pThis);
 
-	static std::pair<int, int> GetEnhancedPower(BuildingTypeClass* pBuilding, int output, HouseClass* pHouse, BuildingClass* pPowerPlant = nullptr);
+	static std::pair<int, int> GetEnhancedPower(TechnoTypeClass* pType, int output, HouseClass* pHouse, TechnoClass* pSource = nullptr);
+	static std::pair<std::int64_t, std::int64_t> GetEnhancedPower(TechnoTypeClass* pType, std::int64_t output, HouseClass* pHouse, TechnoClass* pSource = nullptr);
+	static int GetPowerOutput(BuildingClass* pBuilding, int baseOutput);
 	static bool CanUpgrade(BuildingClass* pBuilding, BuildingTypeClass* pUpgradeType, HouseClass* pUpgradeOwner);
 	static int GetUpgradesAmount(BuildingTypeClass const* const pBuilding, HouseClass const* const pHouse);
 	static int CountOwnedNowWithDeployOrUpgrade(BuildingTypeClass* pBuilding, HouseClass* pHouse);

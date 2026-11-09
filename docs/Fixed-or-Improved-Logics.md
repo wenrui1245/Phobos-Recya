@@ -221,7 +221,7 @@ This page describes all ingame logics that are fixed or improved in Phobos witho
 - Fixed an issue that the widespread damage caused by detonation on the bridge/ground cannot affect objects on the ground/bridge who are in the opposite case.
 - Fixed the bug that `DamageSelf` and `AllowDamageOnSelf` are ineffective on airforce.
 - Fixed the bug that damaged particle dont disappear after building has repaired by engineer.
-- Fixed an issue of incorrect position of `TrailerAnim` in `VoxelAnim`.
+- Fixed an issue of incorrect position of `TrailerAnim` in VoxelAnim.
 - Fixed the bug that `OpenToppedWarpDistance` is calculated incorrectly for building target.
 - Fixed an issue that `MovementZone=Fly` harvesters can not be able to enter refinery buildings manually.
 - Fixed an issue that jumpjet harvester cannot automatically go mining when leaving the weapons factory.
@@ -344,11 +344,11 @@ This page describes all ingame logics that are fixed or improved in Phobos witho
 - Fixed the bug that crashing or sinking unit can be recruit into taskforce team.
 - Units in Tank Bunker with deploy functions no longer perform them when unloaded from of Tank Bunker.
 - Fixed the bug that infantry weapons with both `LimboLaunch=yes` and ammunition logic could not set ReloadTimer properly.
-- Fixed a bug where units that have `MinDebris` and `MaxDebris` defined but `DebrisTypes` undefined would unconditionally spawn `MetallicDebris` once when they die.
 - Removed the 128 techno limit when executing a command.
 - Raised the 16 nodes limit for planning node mode and the 128 total unit limit for a planning order to 256.
 - Allowed repair and sell mode to be always toggleable instead of relying on the presence of `Insignificant=no` buildings.
 - Fixed `IsoMapPack`/`IsoMapPack5` terrain data being truncated on detailed maps: the map-load staging buffer is now sized for a full 512x512 map instead of one 640x400 display surface.
+- Fixed inconsistent damage scaling for negative `PowerPlantEnhancer.Factor` values.
 
 ## Fixes / interactions with other extensions
 
@@ -1727,8 +1727,8 @@ AirburstWeapon.RadialFireSegments=0         ; integer
 ### Arcing projectile customization
 
 - There are several customizations available for `Arcing=true` projectile and weapon behaviour:
-  - `Arcing.AllowElevationInaccuracy` determines whether or not the projectile has inbuilt inaccuracy if the target is at different elevation. Defaults to `[CombatDamage]` -> `Arcing.AllowElevationInaccuracy`
-  - `Arcing.ConsiderBuildingFoundation` determines whether or not weapons using the projectile consider building foundation size in rangefinding calculations - they gain extra range equivalent to building foundation width + height multiplied by 64, in leptons (1/256th of a cell). Defaults to `[CombatDamage]` -> `Arcing.ConsiderBuildingFoundation`
+  - `Arcing.AllowElevationInaccuracy` determines whether or not the projectile has inbuilt inaccuracy if the target is at different elevation. Defaults to `[CombatDamage] -> Arcing.AllowElevationInaccuracy`
+  - `Arcing.ConsiderBuildingFoundation` determines whether or not weapons using the projectile consider building foundation size in rangefinding calculations - they gain extra range equivalent to building foundation width + height multiplied by 64, in leptons (1/256th of a cell). Defaults to `[CombatDamage] -> Arcing.ConsiderBuildingFoundation`
 
 In `rulesmd.ini`:
 ```ini
@@ -1736,9 +1736,9 @@ In `rulesmd.ini`:
 Arcing.AllowElevationInaccuracy=true     ; boolean
 Arcing.ConsiderBuildingFoundation=false  ; boolean
 
-[SOMEPROJECTILE]                         ; Projectile
-Arcing.AllowElevationInaccuracy=         ; boolean
-Arcing.ConsiderBuildingFoundation=       ; boolean
+[SOMEPROJECTILE]                         ; Projectile, with Arcing=true
+Arcing.AllowElevationInaccuracy=         ; boolean, defaults to [CombatDamage] -> Arcing.AllowElevationInaccuracy
+Arcing.ConsiderBuildingFoundation=       ; boolean, defaults to [CombatDamage] -> Arcing.ConsiderBuildingFoundation
 ```
 
 
@@ -2167,9 +2167,9 @@ In `rulesmd.ini`:
 CrashSpin.Multiplier=1.0          ; floating point value
 ```
 
-### Customize the country displayed in `Sight`
+### Customize who sees the map revealed by `Sight`
 
-- You can now customize which countries the `Sight` unit for that nation provides map visibility to.
+- You can now customize which houses see the map revealed by a unit's `Sight`.
 
 In `rulesmd.ini`:
 ```ini
