@@ -275,5 +275,7 @@ public:
 	static void ReorganizeAllTo(HouseClass* pFromHouse, HouseClass* pToHouse);
 	static void __fastcall DecideTechnosFate(HouseClass* pHouse);
 	static void CalculatePowerSurplus(HouseClass* pThis);
+	static void RecheckUnitPower(HouseClass* pThis);
+	static void UpdateUnitPower(HouseClass* pThis);
 };
 
