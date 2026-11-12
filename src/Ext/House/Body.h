@@ -29,6 +29,28 @@ public:
 		return static_cast<HouseClass*>(this->GetAttachedObject());
 	}
 
+	struct PlacingBuildingStruct
+	{
+		BuildingTypeClass* Type { nullptr };
+		BuildingTypeClass* DrawType { nullptr };
+		int Times { 0 };
+		CDTimerClass Timer {};
+		CellStruct TopLeft { CellStruct::Empty };
+		// Mix-ECpack: PlaceBuilding.Extra 类型在挂起等待期间需要保留手动放置时
+		// 编码的水面/朝向标志（bit0 = 水面，bit1+ = 朝向），重发 Place 事件时
+		// 由 CheckHangUpBuilding 读回；仅运行期瞬时状态，不参与存档序列化。
+		int PlaceFlags { 0 };
+
+		PlacingBuildingStruct() = default;
+
+		bool Load(PhobosStreamReader& stm, bool registerForChange);
+		bool Save(PhobosStreamWriter& stm) const;
+
+	private:
+		template <typename T>
+		bool Serialize(T& stm);
+	};
+
 	std::vector<UnitClass*> OwnedDeployingUnits;
 	PlacingBuildingStruct Common;
 	PlacingBuildingStruct Combat;
@@ -107,28 +129,6 @@ public:
 	std::array<int, 3> BeaconsPlacedOrder;
 
 	std::vector<BuildingClass*> Academies;
-
-	struct PlacingBuildingStruct
-	{
-		BuildingTypeClass* Type { nullptr };
-		BuildingTypeClass* DrawType { nullptr };
-		int Times { 0 };
-		CDTimerClass Timer {};
-		CellStruct TopLeft { CellStruct::Empty };
-		// Mix-ECpack: PlaceBuilding.Extra 类型在挂起等待期间需要保留手动放置时
-		// 编码的水面/朝向标志（bit0 = 水面，bit1+ = 朝向），重发 Place 事件时
-		// 由 CheckHangUpBuilding 读回；仅运行期瞬时状态，不参与存档序列化。
-		int PlaceFlags { 0 };
-
-		PlacingBuildingStruct() = default;
-
-		bool Load(PhobosStreamReader& stm, bool registerForChange);
-		bool Save(PhobosStreamWriter& stm) const;
-
-	private:
-		template <typename T>
-		bool Serialize(T& stm);
-	};
 
 	std::int64_t AIPowerDelta;
 
