@@ -744,6 +744,7 @@ public:
 
 		Valueable<bool> ExtendedBuildingPlacing;
 		Valueable<bool> AI_Power_AffectedByEnhancers;
+		Valueable<bool> AI_BasePlan_Rebuild;
 
 		ExtData(RulesClass* OwnerObject) : Extension<RulesClass>(OwnerObject)
 			, Storage_TiberiumIndex { -1 }
@@ -1415,6 +1416,7 @@ public:
 
 			, ExtendedBuildingPlacing { false }
 			, AI_Power_AffectedByEnhancers { true }
+			, AI_BasePlan_Rebuild { true }
 		{ }
 
 		virtual ~ExtData() = default;

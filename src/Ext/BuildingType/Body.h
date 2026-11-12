@@ -185,6 +185,7 @@ public:
 	ValueableVector<TechnoTypeClass*> Academy_Country_Ignore[16];
 
 	Valueable<bool> AutoUpgrade;
+	Nullable<bool> AI_BasePlan_Rebuild;
 
 	// Ares 0.2
 	Valueable<bool> CloningFacility;
@@ -337,6 +338,7 @@ public:
 		, Academy_Country_Ignore {}
 
 		, AutoUpgrade { false }
+		, AI_BasePlan_Rebuild {}
 
 		// Ares 0.2
 		, CloningFacility { false }
