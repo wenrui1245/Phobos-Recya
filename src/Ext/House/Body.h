@@ -12,19 +12,6 @@ class FactoryClass;
 #include <array>
 #include <vector>
 
-struct PlacingBuildingStruct
-{
-	BuildingTypeClass* Type;
-	BuildingTypeClass* DrawType;
-	int Times;
-	CDTimerClass Timer;
-	CellStruct TopLeft;
-	// Mix-ECpack: PlaceBuilding.Extra 类型在挂起等待期间需要保留手动放置时
-	// 编码的水面/朝向标志（bit0 = 水面，bit1+ = 朝向），重发 Place 事件时
-	// 由 CheckHangUpBuilding 读回；上游 28b62dc9 删除 PlaceType 后不再保存。
-	int PlaceFlags = 0;
-};
-
 class HouseExt final : public AbstractExt, public Detach::Listener<BuildingClass>, public Detach::Listener<FactoryClass>
 {
 public:
@@ -121,6 +108,30 @@ public:
 
 	std::vector<BuildingClass*> Academies;
 
+	struct PlacingBuildingStruct
+	{
+		BuildingTypeClass* Type { nullptr };
+		BuildingTypeClass* DrawType { nullptr };
+		int Times { 0 };
+		CDTimerClass Timer {};
+		CellStruct TopLeft { CellStruct::Empty };
+		// Mix-ECpack: PlaceBuilding.Extra 类型在挂起等待期间需要保留手动放置时
+		// 编码的水面/朝向标志（bit0 = 水面，bit1+ = 朝向），重发 Place 事件时
+		// 由 CheckHangUpBuilding 读回；仅运行期瞬时状态，不参与存档序列化。
+		int PlaceFlags { 0 };
+
+		PlacingBuildingStruct() = default;
+
+		bool Load(PhobosStreamReader& stm, bool registerForChange);
+		bool Save(PhobosStreamWriter& stm) const;
+
+	private:
+		template <typename T>
+		bool Serialize(T& stm);
+	};
+
+	std::int64_t AIPowerDelta;
+
 	HouseExt(HouseClass* OwnerObject) : AbstractExt(OwnerObject)
 		, PowerPlantEnhancers {}
 		, OwnedLimboDeliveredBuildings {}
@@ -164,9 +175,10 @@ public:
 		, BeaconsPlacedOrder { 0, 0, 0 }
 		, Academies {}
 		, OwnedDeployingUnits {}
-		, Common { nullptr, nullptr, 0 }
-		, Combat { nullptr, nullptr, 0 }
+		, Common {}
+		, Combat {}
 		, LastRefineryBuildFrame { -1 }
+		, AIPowerDelta { 0 }
 	{ }
 
 	bool OwnsLimboDeliveredBuilding(BuildingClass* pBuilding) const;
@@ -262,6 +274,7 @@ public:
 	static std::vector<int> AIProduction_Values;
 	static std::vector<int> AIProduction_BestChoices;
 	static std::vector<int> AIProduction_BestChoicesNaval;
+	static std::vector<int> AIProduction_CandidateIndices;
 
 	static CanBuildResult BuildLimitGroupUpgradeCheck(const HouseClass* pThis, const TechnoTypeClass* pItem, bool buildLimitOnly, bool includeQueued);
 	static bool ReachedBuildLimit(const HouseClass* pHouse, const TechnoTypeClass* pType, bool ignoreQueued);
@@ -275,7 +288,19 @@ public:
 	static void ReorganizeAllTo(HouseClass* pFromHouse, HouseClass* pToHouse);
 	static void __fastcall DecideTechnosFate(HouseClass* pHouse);
 	static void CalculatePowerSurplus(HouseClass* pThis);
+	static void CalculatePowerSurplus(HouseClass* pThis, std::int64_t aiPowerDrain);
 	static void RecheckUnitPower(HouseClass* pThis);
-	static void UpdateUnitPower(HouseClass* pThis);
+	struct PowerAdjustment
+	{
+		std::int64_t Net = 0;
+		std::int64_t Drain = 0;
+		std::int64_t OverflowNet = 0;
+		std::int64_t OverflowDrain = 0;
+		bool Adjusted = false;
+	};
+	static PowerAdjustment UpdateUnitPower(HouseClass* pThis);
+	static void RecordPowerOutputBeforeDrainClamp(HouseClass* pThis);
+	static std::int64_t UpdateAIPower(HouseClass* pThis, const PowerAdjustment& unitPower);
+	static std::int64_t UpdateAIPower(HouseClass* pThis) { return UpdateAIPower(pThis, PowerAdjustment {}); }
 };
 

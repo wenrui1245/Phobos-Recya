@@ -856,7 +856,7 @@ DEFINE_HOOK(0x47EF52, CellClass_DrawPlaceGrid_DrawGrids, 0x6)
 	return 0;
 }
 
-static inline void ClearPlacingBuildingData(PlacingBuildingStruct* const pPlace)
+static inline void ClearPlacingBuildingData(HouseExt::PlacingBuildingStruct* const pPlace)
 {
 	pPlace->Type = nullptr;
 	pPlace->DrawType = nullptr;

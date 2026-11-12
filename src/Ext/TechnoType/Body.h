@@ -690,8 +690,15 @@ public:
 	ValueableVector<int> NoAmmoWeapons;
 	Valueable<bool> NoAmmoWeapons_IgnoreNeverUse;
 
+	Nullable<int> AI_Power;
+	Nullable<bool> AI_Power_AffectedByEnhancers;
+
 	// Ares 0.2
 	Valueable<int> RadarJamRadius;
+
+	// Ares 0.6
+	Valueable<bool> Drain_Local;
+	Valueable<int> Drain_Amount;
 
 	// Ares 0.9
 	Nullable<int> InhibitorRange;
@@ -699,6 +706,7 @@ public:
 
 	// Ares 0.A
 	PhobosFixedString<0x20> GroupAs;
+	ValueableVector<TechnoTypeClass*> InitialPayload_Types;
 
 	// Ares 0.C
 	Valueable<int> NoAmmoWeapon;
@@ -1282,8 +1290,15 @@ public:
 		, NoAmmoWeapons {}
 		, NoAmmoWeapons_IgnoreNeverUse { true }
 
+		, AI_Power {}
+		, AI_Power_AffectedByEnhancers {}
+
 		// Ares 0.2
 		, RadarJamRadius { 0 }
+
+		// Ares 0.6
+		, Drain_Local { false }
+		, Drain_Amount { 0 }
 
 		// Ares 0.9
 		, InhibitorRange {}
@@ -1291,6 +1306,7 @@ public:
 
 		// Ares 0.A
 		, GroupAs { NONE_STR }
+		, InitialPayload_Types {}
 
 		// Ares 0.C
 		, NoAmmoWeapon { -1 }

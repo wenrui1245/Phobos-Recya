@@ -600,6 +600,7 @@ This page lists all the individual contributions to the project by their author.
   - Fix the bug that `NoQueueUpToEnter` will cause survivors will return to location where they entered transport after the transport has been destroyed
   - Customize which of vehicle thief, pilot, and passenger the tag can be transferred to when the unit is destroyed
   - Fix the bug that crashing or sinking unit can be recruit into taskforce team
+  - Fix the bug where passengers created by `InitialPayload` fail to participate in the transport squad reachability check
 - **Apollo** - Translucent SHP drawing patches
 - **ststl**:
   - Customizable `ShowTimer` priority of superweapons
@@ -805,6 +806,11 @@ This page lists all the individual contributions to the project by their author.
   - Power plant enhancement for infantry, vehicles and aircraft
   - Fix the bug where `HoverLocomotorMakesWake` and `ShipLocomotorMakesWake` are ineffective because they read the wrong tag names
   - Fix the bug where `TiberiumEater.Display.Houses` is ineffective because it reads the wrong tag name
+  - Fix the bug where passengers created by `InitialPayload` fail to participate in the transport squad reachability check
+  - Global default value for `Wake.Grapple`, `Wake.Sinking` and `FallingDownDamage.Water`
+  - Techno power overrides for AI budgeting, including installed upgrades, independent of actual power
+  - Fixed the issue where the AI-triggered reachability check incorrectly rejects reachable transport teams that are summarized as having `MovementZone` of `Amphibious`, `AmphibiousCrusher`, `AmphibiousDestroyer`, or `Fly`
+  - Fix the issue where AI triggers also perform reachability checks on teams that only execute guard, wait, or auxiliary script actions
 - **Ollerus**:
   - Build limit group enhancement
   - Customizable rocker amplitude

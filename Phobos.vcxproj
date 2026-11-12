@@ -138,6 +138,7 @@
     <ClCompile Include="src\Ext\House\Power.cpp" />
     <ClCompile Include="src\Ext\House\Hooks.AINavalProduction.cpp" />
     <ClCompile Include="src\Ext\House\Hooks.AIDualBuildingProduction.cpp" />
+    <ClCompile Include="src\Ext\House\Hooks.AIPower.cpp" />
     <ClCompile Include="src\Ext\House\Hooks.cpp" />
     <ClCompile Include="src\Ext\House\Hooks.ForceEnemy.cpp" />
     <ClCompile Include="src\Ext\House\Hooks.UnitFromFactory.cpp" />

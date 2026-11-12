@@ -1667,11 +1667,18 @@ void TechnoTypeExt::LoadFromINIFile(CCINIClass* const pINI)
 	this->NoAmmoWeapons.Read(exINI, pSection, "NoAmmoWeapons");
 	this->NoAmmoWeapons_IgnoreNeverUse.Read(exINI, pSection, "NoAmmoWeapons.IgnoreNeverUse");
 
+	this->AI_Power.Read(exINI, pSection, "AI.Power");
+	this->AI_Power_AffectedByEnhancers.Read(exINI, pSection, "AI.Power.AffectedByEnhancers");
+
 	// Ares 0.2
 	this->RadarJamRadius.Read(exINI, pSection, "RadarJamRadius");
 	this->Cloneable.Read(exINI, pSection, "Cloneable");
 	this->ClonedAt.Read(exINI, pSection, "ClonedAt");
 	this->ClonedAs.Read(exINI, pSection, "ClonedAs");
+
+	// Ares 0.6
+	this->Drain_Local.Read(exINI, pSection, "Drain.Local");
+	this->Drain_Amount.Read(exINI, pSection, "Drain.Amount");
 
 	// Ares 0.9
 	this->InhibitorRange.Read(exINI, pSection, "InhibitorRange");
@@ -1679,6 +1686,7 @@ void TechnoTypeExt::LoadFromINIFile(CCINIClass* const pINI)
 
 	// Ares 0.A
 	this->GroupAs.Read(pINI, pSection, "GroupAs");
+	this->InitialPayload_Types.Read(exINI, pSection, "InitialPayload.Types");
 
 	// Ares 0.C
 	this->NoAmmoWeapon.Read(exINI, pSection, "NoAmmoWeapon");
@@ -2446,9 +2454,15 @@ void TechnoTypeExt::Serialize(T& Stm)
 
 		.Process(this->NoAmmoWeapons)
 		.Process(this->NoAmmoWeapons_IgnoreNeverUse)
+		.Process(this->AI_Power)
+		.Process(this->AI_Power_AffectedByEnhancers)
 
 		// Ares 0.2
 		.Process(this->RadarJamRadius)
+
+		// Ares 0.6
+		.Process(this->Drain_Local)
+		.Process(this->Drain_Amount)
 
 		// Ares 0.9
 		.Process(this->InhibitorRange)
@@ -2456,6 +2470,7 @@ void TechnoTypeExt::Serialize(T& Stm)
 
 		// Ares 0.A
 		.Process(this->GroupAs)
+		.Process(this->InitialPayload_Types)
 
 		// Ares 0.C
 		.Process(this->NoAmmoWeapon)
