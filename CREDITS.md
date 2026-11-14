@@ -814,6 +814,7 @@ This page lists all the individual contributions to the project by their author.
   - Fix the issue where AI triggers also perform reachability checks on teams that only execute guard, wait, or auxiliary script actions
   - Control of AI base plan rebuilding
   - Fix a bug where an error in Attacking Allies customization at the weapon level broke vanilla behavior that lets weapons with `Sonic` warheads get an attack cursor on parasitized friendly units
+  - Fix a bug where a refactor of the fix for building laser weapon parameter reading accidentally caused `LaserThickness` of `IsHouseColor` lasers to become ineffective
 - **Ollerus**:
   - Build limit group enhancement
   - Customizable rocker amplitude
