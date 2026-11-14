@@ -6,6 +6,7 @@
 #include <BuildingTypeClass.h>
 #include <FactoryClass.h>
 #include <HouseClass.h>
+#include <MapClass.h>
 #include <ScenarioClass.h>
 
 #include <Ext/BuildingType/Body.h>
@@ -190,6 +191,17 @@ void HouseExt::UpdateAIDefenseProduction()
 		if (Unsorted::CurrentFrame < this->AIDefenseNextPlaceFrame)
 			return;
 
+		// 基地计划的节点坐标可能落在可视边界之外：在该位置放置的建筑会成为
+		// 不可见、不可选中、无法被攻击的"幽灵建筑"，使战败计数永远无法归零。
+		// (-1,-1) 是原版重建任务哨兵，由 UnitFromFactory 从工厂出口找位，不受影响。
+		if (this->AIDefenseNodeCoords.X != -1 && this->AIDefenseNodeCoords.Y != -1
+			&& !MapClass::Instance.IsWithinUsableArea(this->AIDefenseNodeCoords, false))
+		{
+			this->AIDefenseAbandonedNodes.push_back(this->AIDefenseNodeCoords);
+			this->ClearAIDefenseFactory();
+			return;
+		}
+
 		this->AIDefenseNextPlaceFrame = Unsorted::CurrentFrame + DualBuildingTemp::PlaceRetryInterval;
 		// Native placement can delete the factory, including through Phobos hooks.
 		// OnDetach clears our pointer; do not dereference pFactory after this call.
@@ -224,6 +236,15 @@ bool HouseExt::TryStartAIDefenseProduction(const BaseNodeClass& node)
 	if (std::find(this->AIDefenseAbandonedNodes.begin(), this->AIDefenseAbandonedNodes.end(),
 		node.MapCoords) != this->AIDefenseAbandonedNodes.end())
 	{
+		return false;
+	}
+
+	// 同 UpdateAIDefenseProduction：越界节点会导致幽灵建筑，直接废弃。
+	// (-1,-1) 是原版重建任务哨兵，由 UnitFromFactory 从工厂出口找位，不受影响。
+	if (node.MapCoords.X != -1 && node.MapCoords.Y != -1
+		&& !MapClass::Instance.IsWithinUsableArea(node.MapCoords, false))
+	{
+		this->AIDefenseAbandonedNodes.push_back(node.MapCoords);
 		return false;
 	}
 
