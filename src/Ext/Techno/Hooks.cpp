@@ -1229,6 +1229,18 @@ DEFINE_HOOK(0x6298CC, ParasiteClass_AI_GrippleAnim, 0x5)
 	return SkipGameCode;
 }
 
+// The parasite unit can die before its victim does: PointerExpired then nulls
+// Owner, and the victim's own expiry notification reaches this function while
+// the suppression timer is still active, skipping the Owner-liveness check in
+// ParasiteClass::PointerExpired. The vanilla Owner dereference below has no
+// null check and crashes on the empty slot; route that case to the vanilla
+// null-owner branch (0x62AB77 onwards) which only relies on Victim.
+DEFINE_HOOK(0x62AB5E, ParasiteClass_CanExistOnVictimCell_NullOwnerGuard, 0xB)
+{
+	GET(ParasiteClass*, pThis, ESI);
+	return pThis->Owner ? 0 : 0x62AB77;
+}
+
 DEFINE_HOOK(0x62AB69, ParasiteClass_CanExistOnVictimCell_AllowWaterExit, 0x6)
 {
 	enum { SkipChecks = 0x62AC0F, ForceFail = 0x62AB4B, ContinueVanilla = 0x62AB77 };
