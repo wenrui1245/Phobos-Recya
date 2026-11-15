@@ -3234,26 +3234,22 @@ int Weather_Draw(void)
 }
 
 /* ---------------- AfterMap 钩 (MOEx AfterMapC 语义) ----------------
- * 0x4F4520(4B): GScreenClass::DrawOnTop 内、第二次 TacticalClass::Render 完成后、
- * UI (侧栏/小工具/消息列表) 之前 —— "地图画完之后、UI 之前"的语义点。
+ * 0x4F4547(6B): GScreenClass::DrawOnTop 内、地图渲染与 B0B519 告示/Armageddon
+ * 分支汇合点 (FirstGadget 绘制前)、消息列表等 UI 之前 —— 每帧必经。
+ * 原指令 8B 0D 54 EF A8 00 (mov ecx, FirstGadget), 绝对寻址无相对跳转, 重放安全。
  *
- * 注意: 不能用 MOEx 原版同语义点 0x4F451B(5B) —— EC 包的 Kaleidoscope.dll 已有
- * "GScreenClass_Render_ZoomPresentHole" 钩在 0x4F451A(6B, 覆盖 pop edi + mov al),
- * 区间与本模块原钩子重叠, 两桩互相破坏导致开局第一帧渲染即跳飞崩溃
- * (snapshot-20261115-120045 实证)。0x4F4520 与它紧邻但不重叠: Kaleidoscope 桩
- * 重放完 0x4F451A-0x4F451F 恰好落到本钩子, 链式顺序天然正确。
- * 原指令 84 C0 74 23 (test al,al / jz short)。SaveShot 的挂接由 Phobos-Mix
- * 侧统一处理, 这里只负责: 光照补刷 -> 跳帧判断 -> 天气绘制。 */
+ * 钩点选择的两条硬约束 (snapshot-20261115-120045/123616 两次崩溃实证):
+ * 1) 不能用 MOEx 原版同语义点 0x4F451B(5B) —— EC 包 Kaleidoscope.dll 的
+ *    "GScreenClass_Render_ZoomPresentHole" 钩在 0x4F451A(6B), 区间重叠;
+ * 2) 钩子长度必须 >= 5 —— Syringe 装钩固定写 5 字节 jmp, 长度不足会踩掉
+ *    后续指令的首字节 (0x4F4520(4B) 实证: 0x4F4524 被踩成 jmp 位移量高位,
+ *    返回 Continue 落进去变成 add r8,[ebx-0x13] 读 0xFFFFFFED 崩溃),
+ *    且返回地址不得落在 [钩点, 钩点+5) 被踩区间内。
+ * SaveShot 的挂接由 Phobos-Mix 侧统一处理, 这里只负责: 光照补刷 -> 跳帧判断 ->
+ * 天气绘制。 */
 
-DEFINE_HOOK(0x4F4520, Weather_AfterMap, 0x4)
+DEFINE_HOOK(0x4F4547, Weather_AfterMap, 0x6)
 {
-	enum { Continue = 0x4F4524, SkipFlagCheck = 0x4F4547 };
-
-	/* 原指令是 test al,al / jz short 0x4F4547 —— 含 rel8 短跳, Syringe 桩池内
-	 * 重放相对跳转会跳飞 (MOEx 笔记的老教训), 所以分支由钩子直接返回目标地址
-	 * 实现, 不走重放: al = [B0B519] (0x4F451B 的 mov al 设置, 经 Kaleidoscope
-	 * 桩重放后进入本钩, EAX 低位就是它)。 */
-
 	/* 0) 存档缩略图的兜底取图（还没有任何缓存时每秒补一张）。 */
 	SaveShot_Tick();
 
@@ -3270,5 +3266,5 @@ DEFINE_HOOK(0x4F4520, Weather_AfterMap, 0x4)
 	if (!skip)
 		Weather_Draw();
 
-	return (R->EAX() & 0xFF) ? Continue : SkipFlagCheck;
+	return 0;   /* 重放被覆盖的原指令 */
 }
