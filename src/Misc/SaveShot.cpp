@@ -554,9 +554,14 @@ static BOOL CALLBACK SS_EnumCb(HWND h, LPARAM lp)
 {
 	SS_Find* f = (SS_Find*)lp;
 	char cls[24];
+	DWORD pid = 0;
 
 	if (GetClassNameA(h, cls, sizeof(cls)) < 2) return TRUE;
 	if (lstrcmpA(cls, "#32770") != 0) return TRUE;
+	/* EnumWindows 会枚举到其它进程的 #32770（输入法/其它程序的对话框），
+	 * 必须限定本进程，否则后续 MapDialogRect / SendMessage 会跨进程乱来。 */
+	GetWindowThreadProcessId(h, &pid);
+	if (pid != GetCurrentProcessId()) return TRUE;
 	if (!SS_IsRealDialog(h)) return TRUE;
 	if (GetDlgItem(h, SS_ID_LIST_LOAD)) { f->hwnd = h; f->listId = SS_ID_LIST_LOAD; return FALSE; }
 	if (GetDlgItem(h, SS_ID_LIST_SAVE)) { f->hwnd = h; f->listId = SS_ID_LIST_SAVE; return FALSE; }
@@ -652,7 +657,7 @@ static void SS_DrawBox(DSurface* surf, const RECT* b, const SS_Pic* im,
 		SS_Blit(surf, b->left + (bw - im->w) / 2, b->top + (bh - im->h) / 2,
 			im->px, im->w, im->h);
 	}
-	else if (noneText && *noneText)
+	else if (noneText && *noneText && BitFont::Instance)
 	{
 		int tw = 0, th = 0;
 		RectangleStruct bound = surf->GetRect();
@@ -664,7 +669,7 @@ static void SS_DrawBox(DSurface* surf, const RECT* b, const SS_Pic* im,
 	}
 
 	/* 框上缘外侧的标题行。 */
-	if (cap && *cap && b->top >= 14)
+	if (cap && *cap && b->top >= 14 && BitFont::Instance)
 	{
 		RectangleStruct bound = surf->GetRect();
 		Point2D pt { b->left + 1, b->top - 14 };
