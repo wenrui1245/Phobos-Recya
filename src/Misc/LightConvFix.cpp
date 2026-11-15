@@ -48,8 +48,8 @@ static int s_HaveSig;
 
 static unsigned LF_CellBase()
 {
-	/* MapClass::Instance 与格子数组同对象（0x87F7E8）。 */
-	auto base = reinterpret_cast<unsigned char*>(MapClass::Instance);
+	/* MapClass::Instance 是引用（对象即 0x87F7E8 处），取地址得到格子数组宿主。 */
+	auto base = reinterpret_cast<unsigned char*>(&MapClass::Instance);
 	if (!base)
 		return 0;
 	return *reinterpret_cast<unsigned*>(base + LF_OFF_BASE);
@@ -151,7 +151,7 @@ static void LF_RefreshAll(int force)
 static DWORD LF_HookBody(DWORD after)
 {
 	LF_EnsureInit();
-	s_CellUpd(reinterpret_cast<void*>(size_t)0x87F7E8u); /* MapClass::Instance */
+	s_CellUpd(reinterpret_cast<void*>(0x87F7E8u)); /* MapClass::Instance */
 	if (!s_On || s_Busy) return after;
 	if (LF_SigChanged()) LF_RefreshAll(0);
 	LF_StoreSig();
@@ -177,7 +177,7 @@ void LightConv_NotifyLoadReady()
 void LightConv_RebuildCells()
 {
 	LF_EnsureInit();
-	s_CellUpd(reinterpret_cast<void*>(size_t)0x87F7E8u);
+	s_CellUpd(reinterpret_cast<void*>(0x87F7E8u));
 	LF_RefreshAll(1);
 	LF_StoreSig();
 }

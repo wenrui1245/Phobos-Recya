@@ -745,6 +745,9 @@ static unsigned g_LastNo = 0;
 static int g_HaveNo = 0;
 static int g_Rewound;           /* 这一帧帧号倒退过 (读档/新局), 见 Wth_SceneCheck */
 static int g_CamX, g_CamY, g_CamHave = 0;
+static int g_ScenCfgApplied = 0;/* 本局已按地图重装天气配置 (0x686B20 钩置位) */
+
+static void Wth_ApplySwitches(CCINIClass& ini);
 
 /* ---------------- 初始化 / 配置装载 ---------------- */
 
@@ -788,6 +791,45 @@ void Weather_LoadConfig(CCINIClass& ini)
 	Wth_ReadCfg(ini);   /* 参数只在装载时读一次: 改 ini 需重进游戏 */
 	Wth_SndSetup();     /* 循环音的通道/条目/音量装载时定死 (音量只从 ini 读一次) */
 	Wth_LogCfg();
+
+	/* 降水/雷电启动开关: 内存态功能的唯一入口 (原版在 ESC 菜单里, 移植版无菜单,
+	 * 由 ini 给初始值; 运行期仍可用 Weather_SetXxx 接热键/命令)。
+	 * 天气是纯本地渲染 + 本地音效, 开关只影响自己, 联机安全。 */
+	Wth_ApplySwitches(ini);
+}
+
+/* 降水/雷电开关统一入口: 缺席键继承当前值 (当前值 = 全局基线或上一层覆盖)。 */
+static void Wth_ApplySwitches(CCINIClass& ini)
+{
+	Weather_SetRain(ini.ReadBool(WTH_SECTION, "Rain", Weather_Rain() != 0) ? 1 : 0);
+	Weather_SetSnow(ini.ReadBool(WTH_SECTION, "Snow", Weather_Snow() != 0) ? 1 : 0);
+	Weather_SetFire(ini.ReadBool(WTH_SECTION, "Fire", Weather_Fire() != 0) ? 1 : 0);
+	Weather_SetThunder(ini.ReadBool(WTH_SECTION, "Thunder", Weather_Thunder() != 0) ? 1 : 0);
+}
+
+/* 换局/读档时装载天气配置 (ScenarioClass_LoadFromINI 统一入口调, pMapIni = 本图
+ * ini): 1) 重置默认值 -> 重读全局基线 (ra2md.ini [Phobos.Weather]), 免得上一张
+ * 地图的覆盖残留到这一局; 2) 地图文件自带 [Phobos.Weather] 节时按同名键覆盖
+ * (缺席键继承全局) —— "只给某些地图开雨雪雷"的入口; 3) 置 g_ScenCfgApplied,
+ * 让 Wth_SceneCheck 的换图复位这一拍跳过 (配置已按新地图重装, 复位会把刚装好
+ * 的天气又关掉)。读档走同一入口, 效果一致。 */
+void Weather_ApplyScenConfig(CCINIClass* pMapIni)
+{
+	Wth_Defaults();
+	Wth_ReadCfg(CCINIClass::INI_RA2MD);
+	Wth_SndSetup();
+	Wth_ApplySwitches(CCINIClass::INI_RA2MD);
+
+	if (pMapIni && pMapIni->GetSection(WTH_SECTION))
+	{
+		Wth_ReadCfg(*pMapIni);      /* 缺席键保持刚装好的全局值 */
+		Wth_SndSetup();
+		Wth_ApplySwitches(*pMapIni);
+		Debug::Log("weather: map config applied\n");
+	}
+
+	g_PxOk = 0;                 /* 新局重新布点 */
+	g_ScenCfgApplied = 1;
 }
 
 int Weather_DrawMode(void)
@@ -2951,12 +2993,19 @@ static void Wth_SceneCheck(void)
 
 	if (s_Seen && lstrcmpW(scen->Name, s_Last))
 	{
-		/* 换了地图: 天气全部收掉, 与新一局"默认无天气"一致。 */
-		Wth_SndReset();
-		for (i = 0; i < WTH_K_N; i++) g_On[i] = 0;
-		g_Thunder = 0;
-		g_PxOk = 0;
-		Debug::Log("weather: reset (new map)\n");
+		/* 换了地图: 天气全部收掉, 与新一局"默认无天气"一致。
+		 * 例外: 本局的配置已按新地图重装过 (0x686B20 钩), 跳过复位 ——
+		 * 否则刚装好的雨雪雷会在这帧被关掉。 */
+		if (g_ScenCfgApplied)
+			g_ScenCfgApplied = 0;
+		else
+		{
+			Wth_SndReset();
+			for (i = 0; i < WTH_K_N; i++) g_On[i] = 0;
+			g_Thunder = 0;
+			g_PxOk = 0;
+			Debug::Log("weather: reset (new map)\n");
+		}
 	}
 	else
 	{

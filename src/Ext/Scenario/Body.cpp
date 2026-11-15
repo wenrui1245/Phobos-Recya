@@ -3,6 +3,7 @@
 #include <VeinholeMonsterClass.h>
 
 #include <Ext/House/Body.h>
+#include <Misc/Weather.h>
 
 std::unique_ptr<ScenarioExt::ExtData> ScenarioExt::Data = nullptr;
 
@@ -296,6 +297,9 @@ DEFINE_HOOK(0x68AD2F, ScenarioClass_LoadFromINI, 0x5)
 	GET(CCINIClass*, pINI, EDI);
 
 	ScenarioExt::LoadFromINIFile(pItem, pINI);
+
+	// 移植自 MO_ExperienceEnhancements: 地图自带 [Phobos.Weather] 节覆盖全局天气配置
+	Weather_ApplyScenConfig(pINI);
 	return 0;
 }
 

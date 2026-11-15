@@ -58,6 +58,11 @@ void Weather_SetCloudStyle(int idx);
  * WeatherLightMix/CloudOpacity/CloudScale/.../Thunder*), 先重置默认值再覆盖。 */
 void Weather_LoadConfig(CCINIClass& ini);
 
+/* 换局/读档时装载天气配置 (由 ScenarioClass_LoadFromINI 钩调用, pMapIni = 本图
+ * ini): 重置默认 -> 重读全局基线 -> 地图自带 [Phobos.Weather] 节同名键覆盖
+ * (缺席键继承全局)。这就是"只给某些地图开雨雪雷"的入口。 */
+void Weather_ApplyScenConfig(CCINIClass* pMapIni);
+
 /* 每帧绘制 (AfterMap 钩调, 三趟地图画完之后、UI 与缩放呈现之前):
  * 画进本帧"未缩放视口原图面" (Phobos 侧 = DSurface::Composite 的 ViewBounds,
  * 与 MOEx 原始视图获取同语义) —— 天气是战场画面的一部分, 跟着原图走缩放呈现,
