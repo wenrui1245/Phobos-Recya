@@ -779,8 +779,10 @@ DEFINE_HOOK(0x746720, UnitClass_ClearDisguise_DefaultDisguise, 0x5)
  * 的同源机制)。正常地形绘制 (TerrainClass::DrawIt) 已经由
  * TerrainClass_Draw_Palette 钩尊重了自定义色盘, 缺的只是伪装这一处。
  *
- * 修复: 画伪装图像且伪装对象是带自定义色盘 (PaletteRemap=false) 的地形时,
- * 换用 TerrainTypeExt::GetPlainPalette 的 PlainPalette; 其余情况一律走原版。
+ * 修复: 与 TerrainClass_Draw_Palette 对齐的两级取盘 ——
+ * 1) PaletteRemap=false 时用 PlainPalette (无光照直绘);
+ * 2) 否则 (含默认 PaletteRemap=true) 用观察者色系的 Palette->Items[...]->LightConvert。
+ * 两级都不可用时一律走原版, 行为不变。
  * 钩点 0x73C794 = "mov edx, [PALETTE_PAL]"(8B 15 C4 F6 87 00, 6B, 绝对间接取,
  * 重放安全); 设了色盘时返回 0x73C799 (钩点+6, 在 5 字节 jmp 被踩区之外),
  * 未设时返回 0 重放原指令 —— EDX 由原指令重新装载。 */
@@ -795,10 +797,32 @@ DEFINE_HOOK(0x73C794, UnitClass_DrawAsSHP_DisguisePalette, 0x6)
 
 		if (const auto pExt = TerrainTypeExt::TryFetch(pDisguise))
 		{
+			/* 一次性排障日志: 伪装色盘的判定路径 (每次运行只打一行)。 */
+			static bool s_Logged = false;
+			if (!s_Logged)
+			{
+				s_Logged = true;
+				Debug::Log("mirage palette: disguise=%s paletteFile=%s remap=%d hasPalette=%d\n",
+				           pDisguise->ID,
+				           pExt->PaletteFile.data(),
+				           pExt->PaletteRemap.Get(),
+				           pExt->Palette ? 1 : 0);
+			}
+
 			if (auto const pPlain = pExt->GetPlainPalette())
 			{
 				R->EDX(pPlain);
-				return 0x73C799;   // 跳过被替换的 "mov edx, PALETTE_PAL"
+				return 0x73C799;   // 跳过被替换的 "mov edx, [PALETTE_PAL]"
+			}
+
+			/* PaletteRemap=true 的自定义色盘: 与正常地形绘制同款, 按观察者色系取。 */
+			if (pExt->Palette && pExt->Palette->Count > 0)
+			{
+				const int idx = HouseClass::CurrentPlayer->ColorSchemeIndex;
+				const int n = pExt->Palette->Count;
+				const int i = idx >= 0 && idx < n ? idx : 0;
+				R->EDX(pExt->Palette->Items[i]->LightConvert);
+				return 0x73C799;
 			}
 		}
 	}
