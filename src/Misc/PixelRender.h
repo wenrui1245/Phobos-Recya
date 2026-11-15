@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 /* PixelRender.h - 16bpp 像素工具（移植自 MagicShiba/MO_ExperienceEnhancements，
  * 原 GdiText 的像素格式校准/混合部分，YRpp 化改写）。
  *

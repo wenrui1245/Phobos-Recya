@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 /* LightConvFix.h - 光照变更后的每格 LightConvert 刷新（灯光抗锯齿）。
  * 移植自 MagicShiba/MO_ExperienceEnhancements src/misc/LightConvFix.cpp。
  *

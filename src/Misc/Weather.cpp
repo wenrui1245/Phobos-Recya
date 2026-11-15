@@ -1,4 +1,4 @@
-/* Weather.cpp - 全屏天气覆盖层 (图像 / 粒子两种画法)。
+﻿/* Weather.cpp - 全屏天气覆盖层 (图像 / 粒子两种画法)。
  * 移植自 MagicShiba/MO_ExperienceEnhancements src/gui/Weather.cpp（YRpp 化改写）。
  *
  * 图像档: RAIN/SNOW.SHP 是整屏单帧 (768x576 / 800x600, 19 帧循环), 按相机
@@ -1409,7 +1409,7 @@ static void Wth_LandStep(int d, int sdx, int sdy, int h)
 /* ---------------- 粒子: 落笔 ---------------- */
 
 /* 加法混合 (火雨): dst 各通道 + fg*a, 饱和。暗底上才亮得起来。
- * (MOEx Wth_Add + GdiText 展开表 -> PixelRender 的 PR_Exp*/PR_GBits。) */
+ * (MOEx Wth_Add + GdiText 展开表 -> PixelRender 的 PR_Exp 表与 PR_GBits。) */
 static unsigned short Wth_Add(unsigned short dst, unsigned r, unsigned g,
                               unsigned b, unsigned a)
 {
@@ -3167,7 +3167,7 @@ int Weather_Draw(void)
 	if (g_Mode == WEATHER_DRAW_IMAGE &&
 	    (g_On[WTH_K_RAIN] || g_On[WTH_K_SNOW]))
 	{
-		ConvertClass* pal = ANIM_PAL;   /* MOEx ADDR_ANIM_PAL (0x87F6C0) */
+		ConvertClass* pal = FileSystem::ANIM_PAL;   /* MOEx ADDR_ANIM_PAL (0x87F6C0) */
 
 		if (pal && PR_IsPlausiblePtr(pal))
 		{

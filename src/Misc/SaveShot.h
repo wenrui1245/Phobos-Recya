@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 /* SaveShot.h - 存档截图管理（核心版）。
  * 移植自 MagicShiba/MO_ExperienceEnhancements src/gui/SaveShot.cpp（核心裁剪：
  * 保留"存档时自动截图落盘 + 存/读档对话框预览"，裁掉对话框重做/按钮/输入法框）。

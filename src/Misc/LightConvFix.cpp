@@ -1,4 +1,4 @@
-/* LightConvFix.cpp - 光照变更后的每格 LightConvert 刷新（灯光抗锯齿）。
+﻿/* LightConvFix.cpp - 光照变更后的每格 LightConvert 刷新（灯光抗锯齿）。
  * 移植自 MagicShiba/MO_ExperienceEnhancements src/misc/LightConvFix.cpp（GPL 项目内引用，来源无许可证）。
  * 原 LightConv_TriggerTint（按比例染色）属 LightingPreset 范围，不移植。
  */

@@ -1,4 +1,4 @@
-/* SaveShot.cpp - 存档截图管理（核心版）。
+﻿/* SaveShot.cpp - 存档截图管理（核心版）。
  * 移植自 MagicShiba/MO_ExperienceEnhancements src/gui/SaveShot.cpp + Shot.cpp（核心裁剪）。
  * 与原版的差异：
  *  - 配置走 Phobos.ini [Phobos.SaveShot]，由 Weather_AfterMap 之外零引擎钩子复用；

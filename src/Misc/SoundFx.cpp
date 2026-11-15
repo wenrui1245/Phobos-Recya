@@ -1,4 +1,4 @@
-/* SoundFx.cpp - 按 sound.ini 条目名调用引擎全局音效。
+﻿/* SoundFx.cpp - 按 sound.ini 条目名调用引擎全局音效。
  * 移植自 MagicShiba/MO_ExperienceEnhancements src/misc/SoundFx.cpp（YRpp 化改写）。
  * VocClass::FindIndex / PlayGlobal / AudioController::GetEvent/End 与 MOEx 手工
  * 声明的 0x7514D0 / 0x750920 / 0x406130 / 0x405FD0 为同一引擎函数。

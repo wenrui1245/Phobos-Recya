@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 /* SoundFx.h - 按 sound.ini 条目名调用引擎全局音效。
  * 移植自 MagicShiba/MO_ExperienceEnhancements src/misc/SoundFx（YRpp 化改写）。
  * 名字由引擎解析，音量与声像直接传给 PlayGlobal；不碰模拟状态。

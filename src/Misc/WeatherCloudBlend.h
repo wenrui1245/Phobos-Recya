@@ -1,4 +1,4 @@
-/* WeatherCloudBlend.h - 顺序 16bpp 云层混色。抖动只依赖目标像素坐标。
+﻿/* WeatherCloudBlend.h - 顺序 16bpp 云层混色。抖动只依赖目标像素坐标。
  * 移植自 MagicShiba/MO_ExperienceEnhancements src/gui/WeatherCloudBlend.h。
  * MSVC 化: 删去 GCC 的 sse2 函数属性声明与 __GNUC__ 条件分支 —— x86 MSVC
  * 目标平台默认带 SSE2, intrinsics 直接可用 (运行时仍由 Weather.cpp 的

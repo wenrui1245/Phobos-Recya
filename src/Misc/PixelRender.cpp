@@ -1,4 +1,4 @@
-/* PixelRender.cpp - 16bpp 位深校准与展开表（移植自 MagicShiba/MO_ExperienceEnhancements
+﻿/* PixelRender.cpp - 16bpp 位深校准与展开表（移植自 MagicShiba/MO_ExperienceEnhancements
  * GdiText.cpp 的 Calibrate/GtBuildExpand，改用 YRpp DSurface 接口）。
  *
  * 在 Temp 面上 FillRect 纯红再读回，判定 565 还是 555。只做一次。

@@ -1,4 +1,4 @@
-/* Weather.h - 全屏天气覆盖层 (图像 / 粒子两种画法), 实现见 Weather.cpp。
+﻿/* Weather.h - 全屏天气覆盖层 (图像 / 粒子两种画法), 实现见 Weather.cpp。
  * 移植自 MagicShiba/MO_ExperienceEnhancements src/gui/Weather.h（YRpp 化改写）。
  *
  * 图像档: art.ini 的 RAIN/SNOW.SHP 整屏帧, 引擎 blit 平铺进视图区。
