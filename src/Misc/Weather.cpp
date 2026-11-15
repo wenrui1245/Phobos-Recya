@@ -3258,21 +3258,30 @@ int Weather_Draw(void)
 }
 
 /* ---------------- AfterMap 钩 (MOEx AfterMapC 语义) ----------------
- * 0x4F4547(6B): GScreenClass::DrawOnTop 内、地图渲染与 B0B519 告示/Armageddon
- * 分支汇合点 (FirstGadget 绘制前)、消息列表等 UI 之前 —— 每帧必经。
- * 原指令 8B 0D 54 EF A8 00 (mov ecx, FirstGadget), 绝对寻址无相对跳转, 重放安全。
+ * 0x55D8F7(6B): MainLoop::FrameStep 内 "call GScreenClass::DrawOnTop" 的返回点,
+ * 原指令 8B 0D xx xx xx xx (mov ecx,[Unsorted::RecordingFlag]), 绝对间接取,
+ * 重放安全。天气画进 Composite 的 ViewBounds (战术视口), 侧栏/对话框区域不受影响。
  *
- * 钩点选择的两条硬约束 (snapshot-20261115-120045/123616 两次崩溃实证):
- * 1) 不能用 MOEx 原版同语义点 0x4F451B(5B) —— EC 包 Kaleidoscope.dll 的
- *    "GScreenClass_Render_ZoomPresentHole" 钩在 0x4F451A(6B), 区间重叠;
- * 2) 钩子长度必须 >= 5 —— Syringe 装钩固定写 5 字节 jmp, 长度不足会踩掉
- *    后续指令的首字节 (0x4F4520(4B) 实证: 0x4F4524 被踩成 jmp 位移量高位,
- *    返回 Continue 落进去变成 add r8,[ebx-0x13] 读 0xFFFFFFED 崩溃),
- *    且返回地址不得落在 [钩点, 钩点+5) 被踩区间内。
+ * 钩点选址史 (每次迁移都有实证, 见 snapshots):
+ * 1) MOEx 原点 0x4F451B(5B) —— EC 包 Kaleidoscope 的 ZoomPresentHole 钩在
+ *    0x4F451A(6B), 区间重叠, 两桩互相破坏, 开局第一帧渲染跳飞崩溃;
+ * 2) 0x4F4520(4B) —— Syringe 装钩固定写 5B jmp, 长度不足踩掉 0x4F4524 的
+ *    指令首字节, 返回 Continue 落进去读 0xFFFFFFED 崩溃 (钩长必须 >= 5);
+ * 3) 0x4F4547(6B) —— 与 Kaleidoscope 的 SidebarOverlay_SkipUnavailableFrame
+ *    同地址同长度, Syringe 同地址链被它的无条件返回 (恒跳 0x4F459D, 见
+ *    Telescope integration/render-recovery/gate-test.cpp 断言) 短路,
+ *    我们的钩子永远轮不到执行 —— 天气静默无效;
+ * 4) 0x55D8F7 —— Kaleidoscope 接管了 0x4F4480-0x4F45A8 整个 DrawOnTop 与
+ *    TacticalClass::Render 内部 (0x4F43DC/0x4F44AF/0x4F44BB/0x4F44CB/0x4F44F9/
+ *    0x4F451A/0x4F4547/0x4F4573/0x4F4589/0x6D3FCF), 该函数内已无任何可用的
+ *    常态路径点; 改挂 FrameStep 里 DrawOnTop 返回点, 在其占用表之外。
+ * 已知偏差: 天气画在 DrawOnTop 之后, 会覆盖战术区内的 UI 覆盖层 (左下角消息
+ * 列表、告示文字) 少量像素; 侧栏与对话框在 ViewBounds 之外不受影响。暂停在
+ * 对话框消息循环时天气静止一拍, 无碍。
  * SaveShot 的挂接由 Phobos-Mix 侧统一处理, 这里只负责: 光照补刷 -> 跳帧判断 ->
  * 天气绘制。 */
 
-DEFINE_HOOK(0x4F4547, Weather_AfterMap, 0x6)
+DEFINE_HOOK(0x55D8F7, Weather_AfterMap, 0x6)
 {
 	/* 0) 存档缩略图的兜底取图（还没有任何缓存时每秒补一张）。 */
 	SaveShot_Tick();
