@@ -949,11 +949,21 @@ static int Wth_Ensure(WthLayer* l)
 	if (l->shp) return 1;
 	if (l->fail) return 0;
 	l->shp = Wth_GetShp(l->id, &l->type);
-	if (!l->shp) { l->fail = 1; Debug::Log("weather: shp load failed\n"); return 0; }
+	if (!l->shp)
+	{
+		l->fail = 1;
+		/* 素材缺失 (本包 rules 没有 RAIN/SNOW AnimType 或 SHP 文件不在 mix 里)
+		 * 时自动落到粒子档, 而不是永远静默无天气。 */
+		g_Kind[l->kind].alwaysParticle = 1;
+		g_PxOk = 0;
+		Debug::Log("weather: shp load failed (%s), fallback to particles\n", l->id);
+		return 0;
+	}
 
 	l->frames = l->shp->Frames;     /* SHPStruct 头: Type/Width/Height/Frames @0/2/4/6 */
 	l->w = l->shp->Width;
 	l->h = l->shp->Height;
+	Debug::Log("weather: shp %s: %dx%d frames=%d\n", l->id, l->w, l->h, l->frames);
 
 	/* 循环段取类型声明值 (RAIN/SNOW: 0..18, 而 SHP 有 31/20 帧)。引擎的
 	 * LoopEnd 是开区间 (0x4246FC 用 Value>=End 判循环), 可见末帧 = LoopEnd-1。 */
@@ -3133,6 +3143,20 @@ int Weather_Draw(void)
 	if (clip.Width < 16 || clip.Height < 16) return 0;
 	if (clip.X < 0 || clip.Y < 0 || clip.X > surfW || clip.Y > surfH ||
 	    clip.Width > surfW - clip.X || clip.Height > surfH - clip.Y) return 0;
+
+	/* 一次性诊断: 钩子在跑、开关状态与画入目标矩形 (排障用, 每次运行只打一行)。 */
+	{
+		static int s_DbgLogged = 0;
+		if (!s_DbgLogged)
+		{
+			s_DbgLogged = 1;
+			Debug::Log("weather: draw ok: mode=%d rain=%d snow=%d fire=%d cloud=%d "
+			           "clip=%d,%d %dx%d surf=%dx%d pitch=%d\n",
+			           g_Mode, g_On[0], g_On[1], g_On[2], g_CloudMode,
+			           clip.X, clip.Y, clip.Width, clip.Height,
+			           surfW, surfH, surfPitch);
+		}
+	}
 
 	/* d / g_Tick / dp 只算一次: Wth_LogicDelta 会推进帧号基准, 再调一次必返回 0,
 	 * 雨雪就不动了。 */
