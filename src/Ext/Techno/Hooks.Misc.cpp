@@ -6,6 +6,7 @@
 #include <Ext/BuildingType/Body.h>
 #include <Ext/Foot/Body.h>
 #include <Ext/Infantry/Body.h>
+#include <Ext/TerrainType/Body.h>
 #include <Ext/Unit/Body.h>
 
 namespace SpawnQueueTemp
@@ -767,6 +768,42 @@ DEFINE_HOOK(0x746720, UnitClass_ClearDisguise_DefaultDisguise, 0x5)
 	pThis->DisguisedAsHouse = pThis->Owner;
 	pThis->Disguised = true;
 	return SetDisguise;
+}
+
+/* 幻影坦克伪装形态的自定义色盘 (Phobos-Mix)。
+ *
+ * 原版机制: 伪装的单位画的是 FootClass::GetImage 返回的 Disguise 地形 SHP
+ * (TerrainType+0xA4), 而 UnitClass::DrawAsSHP 用固定的 FileSystem::PALETTE_PAL
+ * (无光照的标准盘, 0x73C794) 画它 —— 只有使用标准战场地盘的地形显色正确;
+ * art.ini 里自带 Palette= 的地形在伪装形态下必然花掉 (这也是"幻影夜里不变暗"
+ * 的同源机制)。正常地形绘制 (TerrainClass::DrawIt) 已经由
+ * TerrainClass_Draw_Palette 钩尊重了自定义色盘, 缺的只是伪装这一处。
+ *
+ * 修复: 画伪装图像且伪装对象是带自定义色盘 (PaletteRemap=false) 的地形时,
+ * 换用 TerrainTypeExt::GetPlainPalette 的 PlainPalette; 其余情况一律走原版。
+ * 钩点 0x73C794 = "mov edx, [PALETTE_PAL]"(8B 15 C4 F6 87 00, 6B, 绝对间接取,
+ * 重放安全); 设了色盘时返回 0x73C799 (钩点+6, 在 5 字节 jmp 被踩区之外),
+ * 未设时返回 0 重放原指令 —— EDX 由原指令重新装载。 */
+DEFINE_HOOK(0x73C794, UnitClass_DrawAsSHP_DisguisePalette, 0x6)
+{
+	GET(UnitClass*, pThis, EBP);
+
+	if (pThis->Disguised && pThis->Disguise
+		&& pThis->Disguise->WhatAmI() == AbstractType::TerrainType)
+	{
+		const auto pDisguise = static_cast<TerrainTypeClass*>(pThis->Disguise);
+
+		if (const auto pExt = TerrainTypeExt::TryFetch(pDisguise))
+		{
+			if (auto const pPlain = pExt->GetPlainPalette())
+			{
+				R->EDX(pPlain);
+				return 0x73C799;   // 跳过被替换的 "mov edx, PALETTE_PAL"
+			}
+		}
+	}
+
+	return 0;   // 重放原指令: 无自定义色盘时行为与原版完全一致
 }
 
 DEFINE_HOOK(0x746AFF, UnitClass_Desguise_Update_MoveToClear, 0xA)
