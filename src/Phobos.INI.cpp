@@ -8,6 +8,8 @@
 #include <Utilities/Macro.h>
 
 #include "Misc/BlittersFix.h"
+#include "Misc/SaveShot.h"
+#include "Misc/Weather.h"
 
 bool Phobos::UI::DisableEmptySpawnPositions = false;
 bool Phobos::UI::ExtendedToolTips = false;
@@ -120,6 +122,7 @@ bool Phobos::Config::DevelopmentCommands = true;
 bool Phobos::Config::DamageNumbersCommand = false;
 bool Phobos::Config::ShowCameo_Enable = true;
 bool Phobos::Config::ToolTipCargo = true;
+bool Phobos::Config::LightConvert_AutoFix = true;
 
 bool Phobos::Misc::CustomGS = false;
 int Phobos::Misc::CustomGS_ChangeInterval[7] = { -1, -1, -1, -1, -1, -1, -1 };
@@ -180,6 +183,11 @@ DEFINE_HOOK(0x5FACDF, OptionsClass_LoadSettings_LoadPhobosSettings, 0x5)
 	Phobos::Config::ShowGameTime_BoardOpacity = CCINIClass::INI_RA2MD.ReadInteger(phobosSection, "ShowGameTime.BoardOpacity", 40);
 	Phobos::Config::ShowCameo_Enable = CCINIClass::INI_RA2MD.ReadBool(phobosSection, "ShowCameo.Enable", true);
 	Phobos::Config::ToolTipCargo = CCINIClass::INI_RA2MD.ReadBool(phobosSection, "ToolTip.Cargo", true);
+	Phobos::Config::LightConvert_AutoFix = CCINIClass::INI_RA2MD.ReadBool(phobosSection, "LightConvert.AutoFix", true);
+
+	// 移植自 MO_ExperienceEnhancements 的功能模块配置（各自模块自持）
+	SaveShot_LoadConfig(CCINIClass::INI_RA2MD);
+	Weather_LoadConfig(CCINIClass::INI_RA2MD);
 
 	// Custom game speeds, 6 - i so that GS6 is index 0, just like in the engine
 	Phobos::Config::CampaignDefaultGameSpeed = 6 - CCINIClass::INI_RA2MD.ReadInteger(phobosSection, "CampaignDefaultGameSpeed", 4);

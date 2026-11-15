@@ -21,6 +21,7 @@ SyncLogEventBuffer<TargetChangeSyncLogEvent, TargetChanges_Size> SyncLogger::Tar
 SyncLogEventBuffer<TargetChangeSyncLogEvent, DestinationChanges_Size> SyncLogger::DestinationChanges;
 SyncLogEventBuffer<MissionOverrideSyncLogEvent, MissionOverrides_Size> SyncLogger::MissionOverrides;
 SyncLogEventBuffer<AnimCreationSyncLogEvent, AnimCreations_Size> SyncLogger::AnimCreations;
+SyncLogEventBuffer<FrameWatermarkSyncLogEvent, FrameWatermarks_Size> SyncLogger::FrameWatermarks;
 
 void __forceinline MakeCallerRelative(unsigned int& caller)
 {
@@ -111,6 +112,12 @@ void SyncLogger::AddAnimCreationSyncLogEvent(const CoordStruct& coords, unsigned
 	}
 }
 
+void SyncLogger::AddFrameWatermarkSyncLogEvent()
+{
+	auto const& random = ScenarioClass::Instance->Random;
+	SyncLogger::FrameWatermarks.Add(FrameWatermarkSyncLogEvent(random.Next1, random.Next2, 0, Unsorted::CurrentFrame));
+}
+
 void SyncLogger::WriteSyncLog(const char* logFilename)
 {
 	auto const pLogFile = fopen(logFilename, "at");
@@ -128,6 +135,7 @@ void SyncLogger::WriteSyncLog(const char* logFilename)
 		WriteTargetChanges(pLogFile, frameDigits);
 		WriteDestinationChanges(pLogFile, frameDigits);
 		WriteAnimCreations(pLogFile, frameDigits);
+		WriteFrameWatermarks(pLogFile, frameDigits);
 		WriteTeams(pLogFile);
 
 		fclose(pLogFile);
@@ -254,6 +262,24 @@ void SyncLogger::WriteAnimCreations(FILE* const pLogFile, int frameDigits)
 
 		fprintf(pLogFile, "#%05d: X: %*d | Y: %*d | Z: %*d | Caller: %08x | Frame: %*d\n",
 			i, xDigits, animCreation.Coords.X, yDigits, animCreation.Coords.Y, zDigits, animCreation.Coords.Z, animCreation.Caller, frameDigits, animCreation.Frame);
+	}
+
+	fprintf(pLogFile, "\n");
+}
+
+void SyncLogger::WriteFrameWatermarks(FILE* const pLogFile, int frameDigits)
+{
+	fprintf(pLogFile, "Frame watermarks:\n");
+
+	for (size_t i = 0; i < SyncLogger::FrameWatermarks.Size(); i++)
+	{
+		auto const& watermark = SyncLogger::FrameWatermarks.Get();
+
+		if (!watermark.Initialized)
+			continue;
+
+		fprintf(pLogFile, "#%05d: Frame: %*d | Index1: %u | Index2: %u\n",
+			i, frameDigits, watermark.Frame, watermark.Index1, watermark.Index2);
 	}
 
 	fprintf(pLogFile, "\n");
@@ -672,6 +698,7 @@ static void ComputeGameCRC()
 			AddCRC(&EventClass::CurrentFrameCRC, GetCoordHash(pObj->Location) + (int)pObj->WhatAmI());
 	}
 
+	SyncLogger::AddFrameWatermarkSyncLogEvent();
 	AddCRC(&EventClass::CurrentFrameCRC, ScenarioClass::Instance->Random.Random());
 	Game::LogFrameCRC(Unsorted::CurrentFrame % 256);
 }

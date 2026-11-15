@@ -9,12 +9,15 @@
 
 // These determine how many of each type of sync log event are stored in the buffers.
 // Any events added beyond this count overwrite old ones.
-static constexpr unsigned int RNGCalls_Size = 4096;
-static constexpr unsigned int FacingChanges_Size = 1024;
-static constexpr unsigned int TargetChanges_Size = 1024;
-static constexpr unsigned int DestinationChanges_Size = 1024;
-static constexpr unsigned int MissionOverrides_Size = 256;
-static constexpr unsigned int AnimCreations_Size = 512;
+// The buffers are allocated upfront when the DLL is loaded, so keep the combined
+// memory footprint reasonable for the 32-bit process (~50 MB with these values).
+static constexpr unsigned int RNGCalls_Size = 1048576;
+static constexpr unsigned int FacingChanges_Size = 65536;
+static constexpr unsigned int TargetChanges_Size = 65536;
+static constexpr unsigned int DestinationChanges_Size = 65536;
+static constexpr unsigned int MissionOverrides_Size = 16384;
+static constexpr unsigned int AnimCreations_Size = 65536;
+static constexpr unsigned int FrameWatermarks_Size = 262144;
 
 // Intention: Data structure that stores sync event records.
 // Stores fixed amount of items determined by size template arg. Any further additions
@@ -94,6 +97,21 @@ struct RNGCallSyncLogEvent : SyncLogEvent
 	{ }
 };
 
+// Per-frame snapshot of the scenario RNG counters. Comparing two dumps frame by
+// frame locates the exact frame where RNG consumption first diverged, even when
+// the divergence happened long before the rolling event buffers started.
+struct FrameWatermarkSyncLogEvent : SyncLogEvent
+{
+	unsigned int Index1;
+	unsigned int Index2;
+
+	FrameWatermarkSyncLogEvent() : SyncLogEvent() { }
+
+	FrameWatermarkSyncLogEvent(unsigned int Index1, unsigned int Index2, unsigned int Caller, unsigned int Frame)
+		: Index1(Index1), Index2(Index2), SyncLogEvent(Caller, Frame)
+	{ }
+};
+
 struct FacingChangeSyncLogEvent : SyncLogEvent
 {
 	unsigned short Facing;
@@ -152,6 +170,7 @@ private:
 	static SyncLogEventBuffer<TargetChangeSyncLogEvent, DestinationChanges_Size> DestinationChanges;
 	static SyncLogEventBuffer<MissionOverrideSyncLogEvent, MissionOverrides_Size> MissionOverrides;
 	static SyncLogEventBuffer<AnimCreationSyncLogEvent, AnimCreations_Size> AnimCreations;
+	static SyncLogEventBuffer<FrameWatermarkSyncLogEvent, FrameWatermarks_Size> FrameWatermarks;
 
 	static void WriteRNGCalls(FILE* const pLogFile, int frameDigits);
 	static void WriteFacingChanges(FILE* const pLogFile, int frameDigits);
@@ -159,6 +178,7 @@ private:
 	static void WriteDestinationChanges(FILE* const pLogFile, int frameDigits);
 	static void WriteMissionOverrides(FILE* const pLogFile, int frameDigits);
 	static void WriteAnimCreations(FILE* const pLogFile, int frameDigits);
+	static void WriteFrameWatermarks(FILE* const pLogFile, int frameDigits);
 	static void WriteTeams(FILE* const pLogFile);
 public:
 	static int AnimCreations_HighestX;
@@ -175,6 +195,7 @@ public:
 	static void AddDestinationChangeSyncLogEvent(AbstractClass* pObject, AbstractClass* pTarget, unsigned int callerAddress);
 	static void AddMissionOverrideSyncLogEvent(AbstractClass* pObject, int mission, unsigned int callerAddress);
 	static void AddAnimCreationSyncLogEvent(const CoordStruct& coords, unsigned int callerAddress);
+	static void AddFrameWatermarkSyncLogEvent();
 	static void WriteSyncLog(const char* logFilename);
 	static void SetTeamLoggingPadding(TeamClass* pTeam);
 };

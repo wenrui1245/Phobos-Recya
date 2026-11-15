@@ -178,6 +178,7 @@ public:
 		static bool DamageNumbersCommand;
 		static bool ShowCameo_Enable;
 		static bool ToolTipCargo;
+		static bool LightConvert_AutoFix;
 	};
 
 	class Misc
