@@ -904,6 +904,19 @@ void Weather_SetCloudStyle(int idx)
 
 /* ---------------- 资源获取 ---------------- */
 
+/* 引擎堆对象活性判定: 指针粗判 + 虚表必须落在 gamemd 静态区。
+ * 已析构对象 (内存未回收/被复用) 的地址往往"看起来正常", 粗判拦不住;
+ * 但活对象的 vtable 一定指向 gamemd 的 .rdata, 析构后多半不是 —— 收尾
+ * /换局阶段遍历类型表时靠它把住最后一道门。 */
+static int Wth_ObjectAlive(void* p)
+{
+	unsigned vt;
+
+	if (!p || !PR_IsPlausiblePtr(p)) return 0;
+	vt = *(unsigned*)p;
+	return PR_IsPlausiblePtr((void*)vt) && vt >= 0x401000u && vt < 0x8AC000u;
+}
+
 /* 在 AnimTypeClass 表里按 ID 找类型 (MOEx 裸表遍历 +0x04/+0x10 的 YRpp 等价:
  * ABSTRACTTYPE_ARRAY, AnimTypeClass.h, 0x8B4150)。 */
 static AnimTypeClass* Wth_FindAnimType(const char* id)
@@ -911,7 +924,11 @@ static AnimTypeClass* Wth_FindAnimType(const char* id)
 	if (!id) return nullptr;
 	for (auto pType : AnimTypeClass::Array)
 	{
-		if (!pType || !pType->ID[0]) continue;
+		/* 收尾/换局时数组条目可能是已析构对象, ID 指针本身也可能是野的;
+		 * 逐个做活性校验再读。 */
+		if (!Wth_ObjectAlive(pType)) continue;
+		if (!PR_IsPlausiblePtr(pType->ID)) continue;
+		if (!pType->ID[0]) continue;
 		if (!_strcmpi(pType->ID, id)) return pType;
 	}
 	return nullptr;
@@ -924,6 +941,10 @@ static SHPStruct* Wth_GetShp(const char* id, AnimTypeClass** typeOut)
 
 	type = Wth_FindAnimType(id);
 	if (!type) return nullptr;
+	/* 游戏收尾/换局阶段 AnimTypeClass::Array 的条目可能是已析构对象
+	 * (snapshot 21:19:46: 退出路径上 LoadImage 虚调用跳野崩溃, EDX="RAIN"),
+	 * 调 LoadImage 前再做一次活性校验 (虚表必须在 gamemd 静态区)。 */
+	if (!Wth_ObjectAlive(type)) return nullptr;
 	/* ObjectTypeClass 虚表槽 39 = LoadImage (MOEx 手快调 vt[39] 的 YRpp 等价):
 	 * Image 非空直接返回, 否则按 ImageFile/ID 懒加载。 */
 	img = type->LoadImage();
@@ -3283,6 +3304,11 @@ int Weather_Draw(void)
 
 DEFINE_HOOK(0x55D8F7, Weather_AfterMap, 0x6)
 {
+	/* 场景守卫: 退出/主菜单/收尾阶段 ScenarioStarted 复位, 此时不画天气
+	 * 也不碰类型表 (AnimTypeClass 等可能正在被清理)。 */
+	if (!Unsorted::ScenarioStarted)
+		return 0;
+
 	/* 0) 存档缩略图的兜底取图（还没有任何缓存时每秒补一张）。 */
 	SaveShot_Tick();
 
