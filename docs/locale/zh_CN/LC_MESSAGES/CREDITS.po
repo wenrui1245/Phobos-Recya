@@ -2003,6 +2003,10 @@ msgstr "修复了 `InitialPayload` 创建的乘客未能参与运输小队可达
 msgid "Global default value for `Wake.Grapple`, `Wake.Sinking` and `FallingDownDamage.Water`"
 msgstr "`Wake.Grapple`、`Wake.Sinking` 和 `FallingDownDamage.Water` 的全局默认值"
 
+msgid ""
+"Fix the bug that techno cannot use correct palette when disguise as terrain or overlay"
+msgstr "修复了科技类型伪装成地形对象或覆盖物时不能使用正确的调色盘的 Bug"
+
 msgid "**Apollo** - Translucent SHP drawing patches"
 msgstr "**Apollo** - 半透明 SHP 绘制补丁"
 
