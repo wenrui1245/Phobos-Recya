@@ -48,11 +48,28 @@ static int s_HaveSig;
 
 static unsigned LF_CellBase()
 {
-	/* MapClass::Instance 是引用（对象即 0x87F7E8 处），取地址得到格子数组宿主。 */
-	auto base = reinterpret_cast<unsigned char*>(&MapClass::Instance);
-	if (!base)
+	/* MapClass::Instance 是引用（对象即 0x87F7E8 处），取地址得到格子数组宿主。
+	 * 场景启动早期 MapClass+0x13C 可能尚未赋值（0）或残留上局的值（垃圾），
+	 * 必须做合理性检查，绝不能拿着未校验的 base 去解引用 262144 个槽。 */
+	unsigned base = *reinterpret_cast<unsigned*>(
+		reinterpret_cast<unsigned char*>(&MapClass::Instance) + LF_OFF_BASE);
+	if (base < 0x00010000u || base >= 0x7FF00000u || (base & 3u))
 		return 0;
-	return *reinterpret_cast<unsigned*>(base + LF_OFF_BASE);
+	return base;
+}
+
+/* 引擎堆对象活性判定：指针粗判 + 虚表必须落在 gamemd 静态区。
+ * 场景启动/收尾阶段 MapClass 等全局对象可能尚未构造或已析构，
+ * 地址"看起来正常"但虚表已经不对 —— 靠它把住裸调引擎函数的门。 */
+static int LF_ObjectAlive(void* p)
+{
+	unsigned vt;
+
+	if (!p) return 0;
+	unsigned u = (unsigned)(size_t)p;
+	if (u < 0x00010000u || u >= 0x7FF00000u || (u & 3u)) return 0;
+	vt = *(unsigned*)p;
+	return vt >= 0x401000u && vt < 0x8AC000u;
 }
 
 int LightConv_WorldReady()
@@ -115,7 +132,13 @@ static void LF_RefreshAll(int force)
 	for (slot = 0; slot < 512u * 512u; slot++)
 	{
 		c = *reinterpret_cast<void**>(base + slot * 4);
+		/* 格子指针逐个粗判: 数组基址合理不代表槽内容干净 (启动早期/收尾期
+		 * 可能残留上局或未完成的值), 垃圾槽直接跳过。 */
 		if (!c) continue;
+		{
+			unsigned u = (unsigned)(size_t)c;
+			if (u < 0x00010000u || u >= 0x7FF00000u || (u & 3u)) continue;
+		}
 		cells++;
 		old = (unsigned)(size_t)*reinterpret_cast<void**>((unsigned char*)c + 0x34);
 		reinterpret_cast<CellClass*>(c)->InitLightConvert(nullptr, 0x10000, 0, 1000, 1000, 1000);
@@ -177,6 +200,10 @@ void LightConv_NotifyLoadReady()
 void LightConv_RebuildCells()
 {
 	LF_EnsureInit();
+	/* 场景启动/收尾阶段 MapClass::Instance 可能尚未构造或已析构
+	 * (snapshot 16-11 11:23: 一进游戏就崩, LightConv_AfterMapTick 栈),
+	 * 裸调 UpdateCellLighting 前必须先确认对象活着。 */
+	if (!LF_ObjectAlive(&MapClass::Instance)) return;
 	s_CellUpd(reinterpret_cast<void*>(0x87F7E8u));
 	LF_RefreshAll(1);
 	LF_StoreSig();
@@ -186,6 +213,10 @@ void LightConv_AfterMapTick()
 {
 	if (s_PendingRebuild)
 	{
+		/* 世界未就绪时保留标志, 等就绪后的帧再补刷 (启动早期首帧可能还没
+		 * 准备好, 这里清了标志补刷就永久丢了)。 */
+		if (!LF_ObjectAlive(&MapClass::Instance) || !LF_CellBase())
+			return;
 		s_PendingRebuild = 0;
 		LightConv_RebuildCells();
 	}
