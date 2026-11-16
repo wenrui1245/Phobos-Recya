@@ -132,6 +132,13 @@ DEFINE_HOOK(0x71C2BC, TerrainClass_Draw_Palette, 0x6)
 	GET(TerrainClass*, pThis, ESI);
 	const auto pTypeExt = TerrainTypeExt::Fetch(pThis->Type);
 
+	auto const pCell = pThis->GetCell();
+	const int wallOwnerIndex = pCell->WallOwnerIndex;
+	int colorSchemeIndex = HouseClass::CurrentPlayer->ColorSchemeIndex;
+
+	if (wallOwnerIndex >= 0)
+		colorSchemeIndex = HouseClass::Array[wallOwnerIndex]->ColorSchemeIndex;
+
 	if (const auto pPalettes = pTypeExt->Palette)
 	{
 		if (auto const pPlain = pTypeExt->GetPlainPalette())
