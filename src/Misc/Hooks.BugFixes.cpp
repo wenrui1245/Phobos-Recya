@@ -12,6 +12,7 @@
 #include <Ext/WarheadType/Body.h>
 #include <Ext/Cell/Body.h>
 #include <Ext/Script/Body.h>
+#include <Ext/OverlayType/Body.h>
 #include <Ext/TerrainType/Body.h>
 
 #include <Utilities/AresHelper.h>
