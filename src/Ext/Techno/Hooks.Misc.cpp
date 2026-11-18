@@ -3,6 +3,7 @@
 #include <JumpjetLocomotionClass.h>
 
 #include <Ext/Anim/Body.h>
+#include <Interop/AircraftMission.h>
 #include <Ext/BuildingType/Body.h>
 #include <Ext/Foot/Body.h>
 #include <Ext/Infantry/Body.h>
@@ -1318,6 +1319,10 @@ DEFINE_HOOK(0x730D0F, ProcessDeployCommand_DeployFilter, 0x6)
 		}
 	}
 
+    if(auto aircraft=abstract_cast<AircraftClass*>(R->ESI<TechnoClass*>())) {
+        const int action=AircraftMissionBridge::Call(aircraft,AircraftMissionABI::DeployInput);
+        if(action) {R->EAX(action==2 || aircraft->ClickedEvent(EventType::Idle));return 0x730D1B;}
+    }
 	return 0;
 }
 
