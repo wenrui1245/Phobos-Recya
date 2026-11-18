@@ -807,6 +807,8 @@ static void Wth_ApplySwitches(CCINIClass& ini)
 	Weather_SetThunder(ini.ReadBool(WTH_SECTION, "Thunder", Weather_Thunder() != 0) ? 1 : 0);
 }
 
+static int Wth_Ensure(WthLayer* l);
+
 /* 换局/读档时装载天气配置 (ScenarioClass_LoadFromINI 统一入口调, pMapIni = 本图
  * ini): 1) 重置默认值 -> 重读全局基线 (ra2md.ini [Phobos.Weather]), 免得上一张
  * 地图的覆盖残留到这一局; 2) 地图文件自带 [Phobos.Weather] 节时按同名键覆盖
@@ -830,6 +832,21 @@ void Weather_ApplyScenConfig(CCINIClass* pMapIni)
 
 	g_PxOk = 0;                 /* 新局重新布点 */
 	g_ScenCfgApplied = 1;
+
+	/* 图像档资源预加载: LoadImage/FileSystem 是文件 IO, 绝不能在渲染钩子里首调
+	 * (snapshot 11-16/11-18: 首帧 Wth_GetShp("RAIN") -> 引擎 LoadImage 深链里
+	 * 返回地址槽被污染成我们压栈的 "RAIN" id 指针, 控制流飞进 .rdata 崩溃;
+	 * 换 DrawMode=particle 绕开即不崩, 粒子档先行实锤)。场景装载期引擎本来
+	 * 就在大量加载 SHP, 这里做首次加载是安全上下文; 渲染帧的 Wth_Ensure 只会
+	 * 命中缓存 (shp/fail 都已定), 不再触碰文件系统。 */
+	if (g_Mode == WEATHER_DRAW_IMAGE)
+	{
+		for (int i = 0; i < 2; i++)
+		{
+			if (g_On[g_Layer[i].kind])
+				Wth_Ensure(&g_Layer[i]);
+		}
+	}
 }
 
 int Weather_DrawMode(void)
@@ -3236,6 +3253,15 @@ int Weather_Draw(void)
 
 		if (base)
 		{
+			{	/* 一次性诊断: 粒子分支是否真的在跑 (排障用, 只打一行)。 */
+				static int s_PxLogged = 0;
+				if (!s_PxLogged)
+				{
+					s_PxLogged = 1;
+					Debug::Log("weather: particle draw: mask=%u w=%d h=%d\n",
+					           mask, clip.Width, clip.Height);
+				}
+			}
 			Wth_PxInit(clip.Width, clip.Height);
 			Wth_LandStep(dp, cdx, cdy, clip.Height);
 			/* 落点节拍: 铺满整个视图, 按 mask 里的 kind 走 (与粒子同一份集合)。 */
