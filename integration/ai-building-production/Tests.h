@@ -19,6 +19,7 @@ struct Fixture
 		DemandSucceeds = PlaceSucceeds = PlaceDeletesFactory = true;
 		PlaceCalls = 0;
 		NativeFlag = 1;
+		NativeMainSlotClears=0;
 	}
 	~Fixture() { Ext.ClearAIDefenseFactory(); }
 	void Start()
@@ -295,6 +296,30 @@ int main()
 			Check(f.Ext.ProducingDefenseBuildingTypeIndex == 0, "native head job starts when affordable");
 		}
 		Check(DispatchDefenseForTest(nullptr, nullptr) == 0, "null node keeps native path without dereferencing house");
+		for(int mainTarget:{1,2,-1})for(bool success:{false,true})for(bool deletes:{false,true})
+		{
+			Fixture f;BuildingTypeClass barracks,airfield;
+			barracks.ArrayIndex=1;barracks.BuildCat=BuildCat::DontCare;
+			airfield.ArrayIndex=2;airfield.BuildCat=BuildCat::DontCare;
+			BuildingTypeClass::Array.Add(&barracks);BuildingTypeClass::Array.Add(&airfield);
+			f.House.Base.BaseNodes.Items[0].MapCoords={-1,-1};
+			f.Ready();f.House.ProducingBuildingTypeIndex=mainTarget;
+			PlaceSucceeds=success;PlaceDeletesFactory=deletes;
+			f.Ext.UpdateAIDefenseProduction();
+			Check(NativeMainSlotClears==1,"exercise native auto-placement main-slot clear, not only fixed-coordinate placement");
+			Check(f.House.ProducingBuildingTypeIndex==mainTarget,"defense auto-placement must preserve barracks/airfield/idle main target on success AND failure");
+			if(!success) {
+				Unsorted::CurrentFrame=30;f.Ext.UpdateAIDefenseProduction();
+				Check(NativeMainSlotClears==2 && f.Ext.AIDefensePlaceAttempts==2,"blocked auto-placement retries really pass through native clear again");
+				Check(f.House.ProducingBuildingTypeIndex==mainTarget,"repeated blocked defense placement cannot unlock the ordinary AI planner");
+			}
+		}
+		{
+			Fixture f;f.Ready();PlaceSucceeds=false;
+			const CellStruct sentinel{-1,-1};
+			NativePlace(&f.House,nullptr,AbstractType::Building,0,false,&sentinel);
+			Check(f.House.ProducingBuildingTypeIndex==-1,"native placement outside the independent defense call keeps the original target-clear behavior");
+		}
 		Check(LiveFactories.empty() && CreatedFactories == DeletedFactories, "all factories released exactly once");
 		for (auto product : PlacedObjects) delete product;
 		std::printf("PASS: %d controller/dispatch/stream checks (fake engine; no game launched).\n", Checks);

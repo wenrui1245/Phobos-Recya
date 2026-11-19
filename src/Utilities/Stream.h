@@ -176,6 +176,8 @@ public:
 		return this->stream->Peek(reinterpret_cast<PhobosByteStream::data_t*>(&value), sizeof(T));
 	}
 
+	size_t Remaining() const { const auto offset = this->stream->Offset(); const auto size = this->stream->Size(); return offset < size ? size - offset : 0; }
+
 	bool AtEndOfBlock() const { return this->stream->Size() == this->stream->Offset(); }
 
 	bool ExpectEndOfBlock() const

@@ -345,7 +345,9 @@ void BulletTypeExt::Serialize(T& Stm)
 		.Process(this->MissileKeepTargetCoord)
 		.Process(this->MissileSafetyAltitude)
 
-		.Process(this->TrajectoryType) // just keep this shit at last
+		// Keep the second on-disk copy, but reuse the first loaded type and
+		// its swizzle registration.
+		.Process(this->TrajectoryType, false)
 		;
 }
 

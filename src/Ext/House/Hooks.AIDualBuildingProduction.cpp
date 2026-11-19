@@ -29,8 +29,15 @@ namespace DualBuildingTemp
 			auto* host=FindUpgradeHost(pHouse,pType);if(!host)return false;
 			location=host->GetMapCoords();
 		}
-		return reinterpret_cast<bool(__thiscall*)(HouseClass*, AbstractType, int, bool, const CellStruct*)>(0x4FB0E0)
+		// Sentinel placement (-1,-1) reaches KickOutUnit. Its native 444F3F
+		// clears the MAIN building target before placement can succeed or fail.
+		// This call owns only the defense job: preserve the ordinary order just
+		// as the separate naval queue preserves its unrelated native unit slot.
+		const int mainBuilding = pHouse->ProducingBuildingTypeIndex;
+		const bool placed = reinterpret_cast<bool(__thiscall*)(HouseClass*, AbstractType, int, bool, const CellStruct*)>(0x4FB0E0)
 			(pHouse, AbstractType::Building, pType->ArrayIndex, pType->Naval, &location);
+		pHouse->ProducingBuildingTypeIndex = mainBuilding;
+		return placed;
 	}
 
 	inline bool UsesDefenseLine(HouseClass* pHouse)

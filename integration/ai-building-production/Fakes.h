@@ -16,8 +16,13 @@ struct CellStruct
 	bool operator==(const CellStruct&) const = default;
 	static const CellStruct Empty;
 };
-inline const CellStruct CellStruct::Empty {-1, -1};
+inline const CellStruct CellStruct::Empty {0, 0}; // YRpp Vector2D::Empty
 inline CellStruct NativeRepickCell;
+struct MapClass {
+    inline static struct Bounds {
+        bool IsWithinUsableArea(CellStruct c,bool)const{return c.X>=0 && c.Y>=0 && c.X<100 && c.Y<100;}
+    } Instance;
+};
 enum class AbstractType { Building, BuildingType, Unit };
 enum class BuildCat { DontCare, Combat };
 enum class CanBuildResult { TemporarilyUnbuildable = -1, Unbuildable, Buildable };
@@ -99,6 +104,7 @@ struct HouseClass
 namespace Unsorted { inline int CurrentFrame = 0; }
 inline bool DemandSucceeds = true, PlaceSucceeds = true, PlaceDeletesFactory = true;
 inline int PlaceCalls = 0, CreatedFactories = 0, DeletedFactories = 0;
+inline int NativeMainSlotClears=0;
 inline CellStruct PlacedAt;
 inline std::set<FactoryClass*> LiveFactories;
 inline std::vector<TechnoClass*> PlacedObjects;
@@ -175,6 +181,9 @@ inline bool __fastcall NativeBuilt(BaseClass* b, void*, int i) { return b->Built
 inline bool __fastcall NativePlace(HouseClass* h, void*, AbstractType, int, bool, const CellStruct* cell)
 {
 	++PlaceCalls; PlacedAt = *cell;
+	// Native UnitFromFactory's sentinel path calls KickOutUnit. At 444F3F
+	// it clears the shared main building target BEFORE Unlimbo can fail.
+	if(*cell==CellStruct{-1,-1}){h->ProducingBuildingTypeIndex=-1;++NativeMainSlotClears;}
 	if (!PlaceSucceeds) return false;
 	auto f = h->Primary_ForDefenses;
 	assert(f && LiveFactories.contains(f) && f->Done);
