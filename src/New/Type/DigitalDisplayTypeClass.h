@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include <Utilities/Enumerable.h>
-#include <Utilities/TemplateDef.h>
+#include <Utilities/OptionalSavedShape.h>
 #include <Utilities/Anchor.h>
 
 class DigitalDisplayTypeClass final : public Enumerable<DigitalDisplayTypeClass>
@@ -13,7 +13,7 @@ public:
 	Valueable<TextAlign> Align;
 	Anchor AnchorType;
 	Valueable<BuildingSelectBracketPosition> AnchorType_Building;
-	Valueable<SHPStruct*> Shape;
+	OptionalSavedShape Shape;
 	CustomPalette Palette;
 	Nullable<Vector2D<int>> Shape_Spacing;
 	Valueable<bool> Shape_PercentageFrame;

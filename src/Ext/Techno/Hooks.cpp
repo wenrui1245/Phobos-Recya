@@ -1,4 +1,4 @@
-#include <TunnelLocomotionClass.h>
+﻿#include <TunnelLocomotionClass.h>
 #include <Utilities/TargetEnvironment.h>
 
 #include <Ext/Aircraft/Body.h>
@@ -1227,6 +1227,21 @@ DEFINE_HOOK(0x6298CC, ParasiteClass_AI_GrippleAnim, 0x5)
 
 	R->EAX(pWHExt->Parasite_GrappleAnim.Get(RulesExt::Global()->Parasite_GrappleAnim.isset() ? RulesExt::Global()->Parasite_GrappleAnim.Get() : AnimTypeClass::FindIndex("SQDG")));
 	return SkipGameCode;
+}
+
+// PointerExpired has already matched the expiring object to Victim here.
+// When Owner expired first, there is no unit to place or cloak. Reuse the
+// native clear-victim epilogue, before coordinate lookup and the Ares callback
+// that both require Owner. Keep the complete MOV AL,[A8ED5C] / XOR EBX,EBX
+// instructions on the live-owner path.
+DEFINE_HOOK(0x62A28C, ParasiteClass_PointerExpired_ClearVictimWithoutOwner, 0x7)
+{
+	GET(ParasiteClass*, parasite, ESI);
+	if (parasite->Owner)
+		return 0;
+
+	R->EBX(0); // 62A297 copies EBX into Victim before restoring registers.
+	return 0x62A297;
 }
 
 // The parasite unit can die before its victim does: PointerExpired then nulls

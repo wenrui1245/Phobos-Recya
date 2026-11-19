@@ -32,6 +32,7 @@
     <ClCompile Include="ECSDK\SyringeEx.cpp" />
     <!-- src/ -->
     <ClCompile Include="src\Phobos.COM.cpp" />
+    <ClCompile Include="src\Interop\AircraftMission.cpp" />
     <ClCompile Include="src\Phobos.cpp" />
     <ClCompile Include="src\Phobos.CRT.cpp" />
     <ClCompile Include="src\Phobos.Ext.cpp" />
@@ -456,6 +457,7 @@
     <ClInclude Include="src\Commands\ToggleCameos.h" />
     <!-- src\Ext -->
     <ClInclude Include="src\Ext\Aircraft\Body.h" />
+    <ClInclude Include="src\Interop\AircraftMission.h" />
     <ClInclude Include="src\Ext\Anim\Body.h" />
     <ClInclude Include="src\Ext\AnimType\Body.h" />
     <ClInclude Include="src\Ext\Building\Body.h" />

@@ -1,4 +1,5 @@
 #include <AircraftTrackerClass.h>
+#include <Interop/AircraftMission.h>
 #include <EventClass.h>
 #include <HoverLocomotionClass.h>
 #include <JumpjetLocomotionClass.h>
@@ -1257,6 +1258,7 @@ DEFINE_HOOK(0x4C75DA, EventClass_RespondToEvent_Stop, 0x6)
 
 	if (commonAircraft)
 	{
+        if(AircraftMissionBridge::Call(pAircraft,AircraftMissionABI::Stop))return SkipGameCode;
 		pAircraft->SetArchiveTarget(nullptr);
 
 		if (pAircraft->Type->AirportBound)

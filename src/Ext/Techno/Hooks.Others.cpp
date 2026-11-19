@@ -1643,11 +1643,9 @@ DEFINE_HOOK(0x44ACF0, BuildingClass_MissionAttack_Start, 0x6)
 	return 0;
 }
 
-DEFINE_HOOK(0x417FF1, AircraftClass_MissionAttack_Start, 0x6)
+void AircraftMissionAttack_Retarget(AircraftClass* pThis)
 {
-	GET(AircraftClass*, pThis, ESI);
 	CheckVHPScanAndRetarget(pThis);
-	return 0;
 }
 
 DEFINE_HOOK(0x6F7D0D, TechnoClass_CanAutoTargetObject_VHPScanStrong, 0x6)

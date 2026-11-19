@@ -13,9 +13,31 @@ int main(){
   PhobosStreamReader reader(bytes);std::uint32_t got=0;assert(reader.Load(got)&&got==prefix);bool loaded=!enabled;
   assert(MissileWaterSurface::Load(reader,loaded)&&loaded==enabled&&reader.ExpectEndOfBlock());
  }
+ // BulletType writes the missile trajectory twice, with ordinary fields
+ // between the two copies. Read both forms with the real byte stream.
+ for(bool enabled:{false,true}){
+  PhobosByteStream bytes;PhobosStreamWriter writer(bytes);
+  const std::uint32_t lifeDuration=180,gameplayFlags=0x00010000u;
+  assert(MissileWaterSurface::Save(writer,enabled));
+  writer.Save(lifeDuration);writer.Save(gameplayFlags);
+  assert(MissileWaterSurface::Save(writer,enabled));
+  PhobosStreamReader reader(bytes);bool loaded=!enabled;std::uint32_t value=0;
+  assert(MissileWaterSurface::Load(reader,loaded)&&loaded==enabled);
+  assert(reader.Load(value)&&value==lifeDuration);
+  assert(reader.Load(value)&&value==gameplayFlags);
+  loaded=!enabled;
+  assert(MissileWaterSurface::Load(reader,loaded)&&loaded==enabled&&reader.ExpectEndOfBlock());
+ }
  PhobosByteStream full;PhobosStreamWriter writer(full);assert(MissileWaterSurface::Save(writer,true));
  auto copy=full;std::vector<unsigned char> raw(copy.Size());assert(copy.Read(raw.data(),raw.size()));
- for(size_t cut=0;cut<raw.size();++cut){PhobosByteStream partial;partial.Write(raw.data(),cut);PhobosStreamReader reader(partial);bool loaded=true;assert(MissileWaterSurface::Load(reader,loaded)==(cut==0)&&!loaded);}
- for(int bad:{0,1,2}){auto raw2=raw;if(bad==0)raw2[0]^=1;if(bad==1)raw2[4]=2;if(bad==2)raw2.push_back(8);PhobosByteStream bytes;bytes.Write(raw2.data(),raw2.size());PhobosStreamReader reader(bytes);bool loaded=true;assert(!MissileWaterSurface::Load(reader,loaded)&&!loaded);}
- puts("PASS: actual Phobos stream reader/writer and optional Missile type tail; legacy/default layout, enabled round trip, truncated and malformed tails.");
+ for(size_t cut=0;cut<raw.size();++cut){
+  PhobosByteStream partial;partial.Write(raw.data(),cut);PhobosStreamReader reader(partial);bool loaded=true;
+  assert((MissileWaterSurface::Load(reader,loaded)&&reader.ExpectEndOfBlock())==(cut==0)&&!loaded);
+ }
+ for(int bad:{0,1,2}){
+  auto raw2=raw;if(bad==0)raw2[0]^=1;if(bad==1)raw2[4]=2;if(bad==2)raw2.push_back(8);
+  PhobosByteStream bytes;bytes.Write(raw2.data(),raw2.size());PhobosStreamReader reader(bytes);bool loaded=false;
+  assert(!(MissileWaterSurface::Load(reader,loaded)&&reader.ExpectEndOfBlock()));
+ }
+ puts("PASS: inline and final Missile tags; default and enabled round trips, untouched adjacent fields, and rejected malformed frames.");
 }

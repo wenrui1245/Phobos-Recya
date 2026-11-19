@@ -8,6 +8,7 @@
 #include <Utilities/Macro.h>
 #include <Interop/FogOwner.h>
 #include <Misc/FoggedVoxel.h>
+#include "FoggedViewport.h"
 
 #pragma region SmudgeUpdate
 
@@ -1447,6 +1448,25 @@ DEFINE_HOOK(0x762C4E, WaveClass_UpdateWave_SkipInFog, 0x6)
 }
 
 #pragma endregion
+
+// Native dirty tiles are always 60x30, including the tile starting exactly
+// below ViewBounds. Temp can include an extra UI strip, whereas the depth
+// buffers belong to the tactical viewport. Clip before entering the frozen
+// object renderer; its internal clipping only intersects the dirty tile with
+// the snapshot and the backing surface, not with the tactical viewport.
+DEFINE_HOOK(0x6D3596, TacticalClass_DrawFoggedObjects_ClipToViewport, 0x5)
+{
+	if (!ScenarioClass::Instance->SpecialFlags.FogOfWar)
+		return 0; // Replay the original CALL unchanged when fog is disabled.
+
+	auto clipped = *R->ECX<const RectangleStruct*>();
+	if (FoggedViewport::Clip(clipped, DSurface::ViewBounds))
+		reinterpret_cast<void(__fastcall*)(const RectangleStruct*)>(0x4D1890)(&clipped);
+
+	// The original callee takes ECX, has no stack arguments, and returns void.
+	// EAX is overwritten at the continuation; ESI/EDI/EBP remain native.
+	return 0x6D359B;
+}
 
 // 修复迷雾中建筑绘制崩溃：原分支在绘制建筑遮挡时会使用 BUILDINGZ.SHA 的缓存指针
 // （FileSystem::BUILDINGZ_SHA），但该缓冲在进入游戏时已被释放，读取已释放内存导致崩溃。

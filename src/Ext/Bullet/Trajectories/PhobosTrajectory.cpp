@@ -114,14 +114,35 @@ bool TrajectoryTypePointer::Load(PhobosStreamReader& Stm, bool RegisterForChange
 	PhobosTrajectoryType* PTR = nullptr;
 	if (!Stm.Load(PTR))
 		return false;
-	TrajectoryFlag flag;
-	if (PTR && Stm.Load(flag))
+	if (!PTR)
 	{
-		std::construct_at(this, flag);
-		PhobosSwizzle::RegisterChange(PTR, _ptr.get());
-		return _ptr->Load(Stm, RegisterForChange);
+		if (RegisterForChange)
+			_ptr.reset();
+		return !_ptr;
 	}
-	return true;
+
+	TrajectoryFlag flag;
+	if (!Stm.Load(flag))
+		return false;
+
+	if (RegisterForChange)
+	{
+		TrajectoryTypePointer restored(flag);
+		if (!restored)
+		{
+			Debug::Log("TrajectoryTypePointer::Load - Invalid saved trajectory flag %d.\n", static_cast<int>(flag));
+			return false;
+		}
+		_ptr = std::move(restored._ptr);
+		PhobosSwizzle::RegisterChange(PTR, _ptr.get());
+	}
+	else if (!_ptr || _ptr->Flag() != flag)
+	{
+		Debug::Log("TrajectoryTypePointer::Load - Saved trajectory copies do not match.\n");
+		return false;
+	}
+
+	return _ptr->Load(Stm, RegisterForChange) && Stm.Success();
 }
 
 bool TrajectoryTypePointer::Save(PhobosStreamWriter& Stm) const

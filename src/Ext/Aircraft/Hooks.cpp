@@ -1,6 +1,7 @@
 #include "Body.h"
 #include <EventClass.h>
 #include <FlyLocomotionClass.h>
+#include <Interop/AircraftMission.h>
 
 #include <Ext/AircraftType/Body.h>
 #include <Ext/Anim/Body.h>
@@ -9,11 +10,18 @@
 
 #pragma region Mission_Attack
 
+void AircraftMissionAttack_Retarget(AircraftClass*);
+
 DEFINE_HOOK(0x417FF1, AircraftClass_Mission_Attack_StrafeShots, 0x6)
 {
 	GET(AircraftClass*, pThis, ESI);
 
 	auto const pExt = AircraftExt::Fetch(pThis);
+    AircraftMissionAttack_Retarget(pThis);
+    if(AircraftMissionBridge::Call(pThis,AircraftMissionABI::Attack,nullptr,nullptr,
+        pThis->MissionStatus==(int)AirAttackStatus::ReturnToBase)) {
+        R->EAX(1);return 0x4183F8;
+    }
 	AirAttackStatus const state = (AirAttackStatus)pThis->MissionStatus;
 
 	// Re-evaluate weapon choice due to potentially changing targeting conditions here
@@ -482,7 +490,7 @@ static bool __fastcall AircraftTypeClass_CanUseWaypoint(AircraftTypeClass* pThis
 }
 DEFINE_FUNCTION_JUMP(VTABLE, 0x7E2908, AircraftTypeClass_CanUseWaypoint)
 
-static __forceinline int GetTurningRadius(AircraftClass* pThis)
+int AircraftMissionTurningRadius(AircraftClass* pThis)
 {
 	constexpr double epsilon = 1e-10;
 	constexpr double raw2Radian = Math::TwoPi / 65536;
@@ -505,23 +513,29 @@ DEFINE_HOOK(0x416A0A, AircraftClass_Mission_Move_SmoothMoving, 0x5)
 
 	const auto pType = pThis->Type;
 
-	if (!pType->AirportBound)
+	const bool external=AircraftMissionBridge::Call(pThis,AircraftMissionABI::Enabled)!=0;
+	if (!pType->AirportBound && !external)
 		return 0;
 
 	const bool extendedMissions = AircraftTypeExt::Fetch(pType)->ExtendedAircraftMissions.Get(RulesExt::Global()->ExtendedAircraftMissions);
 
-	if (!AircraftTypeExt::Fetch(pType)->ExtendedAircraftMissions_SmoothMoving.Get(extendedMissions))
+	if (!external && !AircraftTypeExt::Fetch(pType)->ExtendedAircraftMissions_SmoothMoving.Get(extendedMissions))
 		return 0;
 
 	const int distance = static_cast<int>(Point2D { pCoords->X, pCoords->Y }.DistanceFrom(Point2D { pThis->Location.X, pThis->Location.Y }));
 
 	// When the horizontal distance between the aircraft and its destination is greater than half of its deceleration distance
 	// or its turning radius, continue to move forward, otherwise return to airbase or execute the next planning waypoint
-	const int turningRadius = GetTurningRadius(pThis);
+	const int turningRadius = AircraftMissionTurningRadius(pThis);
 
 	if (distance > std::max((pType->SlowdownDistance / 2), turningRadius))
 		return (R->Origin() == 0x4168C7 ? ContinueMoving1 : ContinueMoving2);
 
+    if(external) {
+        if(pThis->TryNextPlanningTokenNode())return EnterIdleAndReturn;
+        if(!AircraftMissionBridge::Call(pThis,AircraftMissionABI::Arrival,pCoords))pThis->EnterIdleMode(false,true);
+        return EnterIdleAndReturn;
+    }
 	// Try next planning waypoint first, then return to air base if it does not exist or cannot be taken
 	if (!extendedMissions || (!pThis->TryNextPlanningTokenNode() && pThis->QueuedMission != Mission::Area_Guard))
 		pThis->EnterIdleMode(false, true);
@@ -614,7 +628,7 @@ DEFINE_HOOK(0x4CF190, FlyLocomotionClass_FlightUpdate_SetPrimaryFacing, 0x6) // 
 			if (pAircraft->Destination && (pAircraft->DockNowHeadingTo == pAircraft->Destination || pAircraft->SpawnOwner == pAircraft->Destination))
 			{
 				// Like smooth moving
-				const int turningRadius = GetTurningRadius(pAircraft);
+				const int turningRadius = AircraftMissionTurningRadius(pAircraft);
 
 				// diameter = 2 * radius
 				const int cellCounts = Math::max((pAircraft->Type->SlowdownDistance / Unsorted::LeptonsPerCell), (turningRadius / 128));
@@ -723,7 +737,7 @@ DEFINE_HOOK(0x4CE42A, FlyLocomotionClass_StateUpdate_NoLanding, 0x6) // Prevent 
 
 	const auto pAircraft = abstract_cast<AircraftClass*, true>(pLinkTo);
 
-	if (!pAircraft || !AircraftTypeExt::Fetch(pAircraft->Type)->ExtendedAircraftMissions.Get(RulesExt::Global()->ExtendedAircraftMissions))
+	if (!pAircraft || (!AircraftMissionBridge::Call(pAircraft,AircraftMissionABI::Enabled) && !AircraftTypeExt::Fetch(pAircraft->Type)->ExtendedAircraftMissions.Get(RulesExt::Global()->ExtendedAircraftMissions)))
 		return 0;
 
 	if (pAircraft->Airstrike || pAircraft->IsALoaner || pAircraft->GetCurrentMission() == Mission::Enter)
@@ -737,6 +751,8 @@ DEFINE_HOOK(0x414DA8, AircraftClass_Update_UnlandableDamage, 0x6) // After FootC
 	GET(AircraftClass* const, pThis, ESI);
 
 	const auto pType = pThis->Type;
+
+    if(AircraftMissionBridge::Call(pThis,AircraftMissionABI::Update))return 0;
 
 	if (pThis->IsAlive && pThis->Health > 0 && pType->AirportBound && !pThis->Airstrike && !pThis->IsALoaner)
 	{
@@ -800,6 +816,7 @@ DEFINE_HOOK(0x41A5C7, AircraftClass_Mission_Guard_StartAreaGuard, 0x6)
 
 	GET(AircraftClass* const, pThis, ESI);
 
+    if(AircraftMissionBridge::Call(pThis,AircraftMissionABI::Guard))return SkipGameCode;
 	if (!AircraftTypeExt::Fetch(pThis->Type)->ExtendedAircraftMissions.Get(RulesExt::Global()->ExtendedAircraftMissions)
 		|| pThis->Team || !pThis->IsArmed() || pThis->Airstrike || pThis->IsALoaner)
 	{
@@ -824,6 +841,7 @@ DEFINE_HOOK(0x41A96C, AircraftClass_Mission_AreaGuard, 0x6)
 
 	GET(AircraftClass* const, pThis, ESI);
 
+    if(AircraftMissionBridge::Call(pThis,AircraftMissionABI::Patrol)){R->EAX(1);return SkipGameCode;}
 	if (!AircraftTypeExt::Fetch(pThis->Type)->ExtendedAircraftMissions.Get(RulesExt::Global()->ExtendedAircraftMissions)
 		|| pThis->Team || !pThis->IsArmed() || pThis->Airstrike || pThis->IsALoaner)
 	{
@@ -848,7 +866,7 @@ DEFINE_HOOK(0x41A96C, AircraftClass_Mission_AreaGuard, 0x6)
 	auto hoverOverArchive = [pThis](const CoordStruct& coords, AbstractClass* pDest)
 	{
 		const auto& location = pThis->Location;
-		const int turningRadius = GetTurningRadius(pThis);
+		const int turningRadius = AircraftMissionTurningRadius(pThis);
 		const double distance = Math::max(1.0, Point2D { coords.X, coords.Y }.DistanceFrom(Point2D { location.X, location.Y }));
 
 		// Random hovering direction
@@ -1096,7 +1114,7 @@ DEFINE_HOOK(0x4425B6, BuildingClass_ReceiveDamage_NoDestroyLink, 0xA)
 // GreatestThreat: for all the mission that should let the aircraft auto select a target
 static AbstractClass* __fastcall AircraftClass_GreatestThreat(AircraftClass* pThis, void* _, ThreatType threatType, CoordStruct* pSelectCoords, bool onlyTargetHouseEnemy)
 {
-	if (AircraftTypeExt::Fetch(pThis->Type)->ExtendedAircraftMissions.Get(RulesExt::Global()->ExtendedAircraftMissions)
+	if ((AircraftMissionBridge::Call(pThis,AircraftMissionABI::Enabled) || AircraftTypeExt::Fetch(pThis->Type)->ExtendedAircraftMissions.Get(RulesExt::Global()->ExtendedAircraftMissions))
 		&& !pThis->Team && pThis->Ammo && !pThis->Airstrike && !pThis->IsALoaner)
 	{
 		if (const auto pPrimaryWeapon = pThis->GetWeapon(0)->WeaponType)
@@ -1148,6 +1166,22 @@ DEFINE_HOOK(0x4C72F2, EventClass_Execute_AircraftAreaGuard_Unlink, 0x6)
 	}
 
 	return 0;
+}
+
+// Accepted orders after both native tether/unlink paths; forward facts only.
+DEFINE_HOOK(0x4C7349, EventClass_Execute_AircraftMissionBridge, 0x6)
+{
+    auto event=R->ESI<EventClass*>();
+    if(auto aircraft=abstract_cast<AircraftClass*>(R->EDI<TechnoClass*>())) {
+        const bool formation=event->Type==EventType::MegaMissionF;
+        auto target=formation?event->MegaMissionF.Target.As_Abstract():event->MegaMission.Target.As_Abstract();
+        auto destination=formation?event->MegaMissionF.Destination.As_Abstract():event->MegaMission.Destination.As_Abstract();
+        auto origin=target?target:destination;
+        const auto point=origin?origin->GetCoords():aircraft->Location;
+        const int mission=formation?event->MegaMissionF.Mission:event->MegaMission.Mission;
+        AircraftMissionBridge::Call(aircraft,AircraftMissionABI::Order,&point,target,mission);
+    }
+    return 0;
 }
 
 DEFINE_HOOK(0x418CF3, AircraftClass_Mission_Attack_PlanningFix, 0x5)
