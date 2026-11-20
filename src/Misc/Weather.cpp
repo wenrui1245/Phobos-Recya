@@ -3304,9 +3304,13 @@ int Weather_Draw(void)
 }
 
 /* ---------------- AfterMap 钩 (MOEx AfterMapC 语义) ----------------
- * 0x55D8F7(6B): MainLoop::FrameStep 内 "call GScreenClass::DrawOnTop" 的返回点,
- * 原指令 8B 0D xx xx xx xx (mov ecx,[Unsorted::RecordingFlag]), 绝对间接取,
- * 重放安全。天气画进 Composite 的 ViewBounds (战术视口), 侧栏/对话框区域不受影响。
+ * 0x4F450F(6B): GScreenClass::DrawOnTop 内 "GpuBeginObjects 之后、ZoomPresent
+ * Hole 之前" 的空档, 原指令 8B 0D 24 73 88 00 (mov ecx,[0x887324]), 绝对间接
+ * 取, 重放安全。Kaleidoscope 的呈现复制 (FinishTacticalPresent: Composite ->
+ * 呈现画布) 在 0x4F451A 的 ZoomPresentHole 钩内执行, 我们必须赶在它之前把
+ * 雨雪写进 Composite —— 否则写进的是"已复制完的帧", 永不上屏 (实测症状:
+ * 按 Win 切出窗口/失焦重绘时才看得到雨雪)。两条路径 (ZoomDeferUI 的相机
+ * 绑定路径与非绑定路径) 都汇聚到 0x4F4505, 0x4F450F 每帧必经。
  *
  * 钩点选址史 (每次迁移都有实证, 见 snapshots):
  * 1) MOEx 原点 0x4F451B(5B) —— EC 包 Kaleidoscope 的 ZoomPresentHole 钩在
@@ -3321,13 +3325,21 @@ int Weather_Draw(void)
  *    TacticalClass::Render 内部 (0x4F43DC/0x4F44AF/0x4F44BB/0x4F44CB/0x4F44F9/
  *    0x4F451A/0x4F4547/0x4F4573/0x4F4589/0x6D3FCF), 该函数内已无任何可用的
  *    常态路径点; 改挂 FrameStep 里 DrawOnTop 返回点, 在其占用表之外。
+ *    但这是呈现复制之后的时机: Kaleidoscope 的 FinishTacticalPresent 在
+ *    DrawOnTop 内部就把 Composite 缩放复制进呈现画布, 我们在返回点画进的
+ *    雨雪永远赶不上本帧呈现 (2026-11-20 实测: 粒子每帧画 1669 颗却不上屏,
+ *    失焦重绘时才显现);
+ * 5) 0x4F450F —— 现址。占位在 Kaleidoscope 的 GpuBeginObjects(0x4F4505) 与
+ *    ZoomPresentHole(0x4F451A) 之间, E8 call(0x4F4515, rel32 不可重放) 之前;
+ *    每帧必经、无同地址冲突、重放安全。GPU 路径 (DeferTacticalScale) 与 CPU
+ *    路径 (StretchAreaAverage/StretchNearest) 的复制都在它之后读 Composite。
  * 已知偏差: 天气画在 DrawOnTop 之后, 会覆盖战术区内的 UI 覆盖层 (左下角消息
  * 列表、告示文字) 少量像素; 侧栏与对话框在 ViewBounds 之外不受影响。暂停在
  * 对话框消息循环时天气静止一拍, 无碍。
  * SaveShot 的挂接由 Phobos-Mix 侧统一处理, 这里只负责: 跳帧判断 ->
  * 天气绘制。 */
 
-DEFINE_HOOK(0x55D8F7, Weather_AfterMap, 0x6)
+DEFINE_HOOK(0x4F450F, Weather_AfterMap, 0x6)
 {
 	/* 场景守卫: 退出/主菜单/收尾阶段 ScenarioStarted 复位, 此时不画天气
 	 * 也不碰类型表 (AnimTypeClass 等可能正在被清理)。 */

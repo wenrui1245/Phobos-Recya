@@ -33,6 +33,9 @@ void PR_BuildExpand()
 
 void PR_Calibrate()
 {
+	if (PR_Calibrated)
+		return;
+
 	/* RA2/YR 的 16bpp 面恒为 RGB565。原 GDI 探针在这里失效: YRpp
 	 * DSurface::DrawRect 不做颜色转换, 传入的 COLORREF 低 16 位被原样写进
 	 * 面里再原样读回, 往返永远探测不出 565/555 差异, 只会制造
