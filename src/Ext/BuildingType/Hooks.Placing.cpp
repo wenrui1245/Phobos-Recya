@@ -1,4 +1,4 @@
-﻿#include "Body.h"
+#include "Body.h"
 
 #include <Ext/Unit/Body.h>
 #include <Ext/House/Body.h>
@@ -203,42 +203,6 @@ DEFINE_HOOK(0x5887C1, MapClass_BuildingToWall_SkipExtraWalls, 0x6)
 	return NextDirection;
 }
 
-static inline bool IsSameFenceType(const BuildingTypeClass* const pPostType, const BuildingTypeClass* const pFenceType)
-{
-	const auto count = BuildingTypeClass::Array.Count;
-
-	for (int i = 0; i < count; ++i)
-	{
-		const auto pSearchType = BuildingTypeClass::Array.Items[i];
-
-		if (pSearchType->LaserFence)
-		{
-			if (pSearchType != pFenceType)
-				return false;
-
-			break;
-		}
-	}
-
-	return true;
-}
-
-static inline bool CheckCanNotExistHere(FootClass* const pTechno, HouseClass* const pOwner, bool expand, bool& skipFlag, bool& landFootOnly)
-{
-	if (pTechno == UnitExt::Deployer)
-	{
-		skipFlag = true;
-		return false;
-	}
-
-	if (!expand || pTechno->GetTechnoType()->Speed <= 0 || !BuildingTypeExt::CheckOccupierCanLeave(pOwner, pTechno->Owner))
-		return true;
-	else
-		landFootOnly = true;
-
-	return false;
-}
-
 // Buildable-upon TechnoTypes Helper + Buildable Proximity Helper（含本分支扩展字段）
 namespace ProximityTemp
 {
@@ -251,194 +215,6 @@ namespace ProximityTemp
 	BuildingTypeClass* BuildType = nullptr;
 }
 
-// Buildable-upon TerrainTypes Hook #1 -> sub_47C620 - Allow placing buildings on top of them
-// Buildable-upon TechnoTypes Hook #1 -> sub_47C620 - Rewrite and check whether allow placing buildings on top of them
-DEFINE_HOOK(0x47C640, CellClass_CanThisExistHere_IgnoreSomething, 0x6)
-{
-	enum { CanNotExistHere = 0x47C6D1, CanExistHere = 0x47C6A0 };
-
-	GET(const CellClass* const, pCell, EDI);
-	GET(const BuildingTypeClass* const, pBuildingType, EAX);
-	GET_STACK(HouseClass* const, pOwner, STACK_OFFSET(0x18, 0xC));
-
-	ProximityTemp::Exist = false;
-
-	if (!Game::IsActive)
-		return CanExistHere;
-
-	const bool expand = RulesExt::Global()->ExtendedBuildingPlacing.Get();
-	bool landFootOnly = false;
-
-	if (pBuildingType->LaserFence)
-	{
-		for (auto pObject = pCell->FirstObject; pObject; pObject = pObject->NextObject)
-		{
-			switch (pObject->WhatAmI())
-			{
-			case AbstractType::Building:
-			{
-				return CanNotExistHere;
-			}
-			case AbstractType::Terrain:
-			{
-				auto const pTerrain = abstract_cast<TerrainClass*>(pObject);
-				auto const pType = pTerrain->Type;
-				auto const pTypeExt = TerrainTypeExt::Fetch(pType);
-				bool const canBuild = pTypeExt->CanBeBuiltOn.Get(pType->SpawnsTiberium ? RulesExt::Global()->Tibtree_CanBeBuiltOn : RulesExt::Global()->Terrain_CanBeBuiltOn);
-
-				if (!canBuild)
-					return CanNotExistHere;
-
-				break;
-			}
-			default:
-			{
-				break;
-			}
-			}
-		}
-	}
-	else if (pBuildingType->LaserFencePost || pBuildingType->Gate)
-	{
-		bool skipFlag = UnitExt::Deployer ? UnitExt::Deployer->CurrentMapCoords == pCell->MapCoords : false;
-		bool builtOnCanBeBuiltOn = false;
-
-		for (auto pObject = pCell->FirstObject; pObject; pObject = pObject->NextObject)
-		{
-			switch (pObject->WhatAmI())
-			{
-			case AbstractType::Aircraft:
-			{
-				return CanNotExistHere;
-			}
-			case AbstractType::Building:
-			{
-				const auto pBuilding = static_cast<BuildingClass*>(pObject);
-				const auto pType = pBuilding->Type;
-
-				if (pOwner != pBuilding->Owner || !pType->LaserFence)
-					return CanNotExistHere;
-				else if (pBuildingType->LaserFencePost && !IsSameFenceType(pBuildingType, pType))
-					return CanNotExistHere;
-
-				break;
-			}
-			case AbstractType::Infantry:
-			case AbstractType::Unit:
-			{
-				if (CheckCanNotExistHere(static_cast<FootClass*>(pObject), pOwner, expand, skipFlag, landFootOnly))
-					return CanNotExistHere;
-
-				break;
-			}
-			case AbstractType::Terrain:
-			{
-				auto const pTerrain = abstract_cast<TerrainClass*>(pObject);
-				auto const pType = pTerrain->Type;
-				auto const pTypeExt = TerrainTypeExt::Fetch(pType);
-				bool const canBuild = pTypeExt->CanBeBuiltOn.Get(pType->SpawnsTiberium ? RulesExt::Global()->Tibtree_CanBeBuiltOn : RulesExt::Global()->Terrain_CanBeBuiltOn);
-
-				if (!canBuild)
-					return CanNotExistHere;
-
-				builtOnCanBeBuiltOn = true;
-				break;
-			}
-			default:
-			{
-				break;
-			}
-			}
-		}
-
-		if (!landFootOnly && !builtOnCanBeBuiltOn && (pCell->OccupationFlags & (skipFlag ? 0x1F : 0x3F)))
-		{
-			if (expand)
-				landFootOnly = true;
-			else
-				return CanNotExistHere;
-		}
-	}
-	else if (pBuildingType->ToTile)
-	{
-		const auto isoTileTypeIndex = pCell->IsoTileTypeIndex;
-
-		if (isoTileTypeIndex >= 0 && isoTileTypeIndex < IsometricTileTypeClass::Array.Count && !IsometricTileTypeClass::Array.Items[isoTileTypeIndex]->Morphable)
-			return CanNotExistHere;
-
-		for (auto pObject = pCell->FirstObject; pObject; pObject = pObject->NextObject)
-		{
-			if (const auto pBuilding = abstract_cast<BuildingClass*, true>(pObject))
-				return CanNotExistHere;
-
-			if (const auto pTerrain = abstract_cast<TerrainClass*, true>(pObject))
-			{
-				const auto pType = pTerrain->Type;
-				const auto pExt = TerrainTypeExt::Fetch(pType);
-				if (pExt->HasCustomFoundation() && !pExt->CanBeBuiltOn.Get(pType->SpawnsTiberium ? RulesExt::Global()->Tibtree_CanBeBuiltOn : RulesExt::Global()->Terrain_CanBeBuiltOn))
-					return CanNotExistHere;
-			}
-		}
-	}
-	else
-	{
-		bool skipFlag = UnitExt::Deployer ? UnitExt::Deployer->CurrentMapCoords == pCell->MapCoords : false;
-		bool builtOnCanBeBuiltOn = false;
-
-		for (auto pObject = pCell->FirstObject; pObject; pObject = pObject->NextObject)
-		{
-			switch (pObject->WhatAmI())
-			{
-			case AbstractType::Aircraft:
-			case AbstractType::Building:
-			{
-				return CanNotExistHere;
-			}
-
-			case AbstractType::Infantry:
-			case AbstractType::Unit:
-			{
-				if (CheckCanNotExistHere(static_cast<FootClass*>(pObject), pOwner, expand, skipFlag, landFootOnly))
-					return CanNotExistHere;
-
-				break;
-			}
-
-			case AbstractType::Terrain:
-			{
-				auto const pTerrain = abstract_cast<TerrainClass*>(pObject);
-				auto const pType = pTerrain->Type;
-				auto const pTypeExt = TerrainTypeExt::Fetch(pType);
-				bool const canBuild = pTypeExt->CanBeBuiltOn.Get(pType->SpawnsTiberium ? RulesExt::Global()->Tibtree_CanBeBuiltOn : RulesExt::Global()->Terrain_CanBeBuiltOn);
-
-				if (!canBuild)
-					return CanNotExistHere;
-
-				builtOnCanBeBuiltOn = true;
-				break;
-			}
-
-			default:
-			{
-				break;
-			}
-			}
-		}
-
-		if (!landFootOnly && !builtOnCanBeBuiltOn && (pCell->OccupationFlags & (skipFlag ? 0x1F : 0x3F)))
-		{
-			if (expand)
-				landFootOnly = true;
-			else
-				return CanNotExistHere;
-		}
-	}
-
-	if (landFootOnly)
-		ProximityTemp::Exist = true;
-
-	return CanExistHere; // Continue check the overlays .etc
-}
 
 // Buildable-upon TerrainTypes Hook #2 - Draw laser fence placement even if they are on the way.
 DEFINE_HOOK(0x6D57C1, TacticalClass_DrawLaserFencePlacement_BuildableTerrain, 0x9)
@@ -1010,6 +786,15 @@ DEFINE_HOOK(0x47C640, CellClass_CanThisExistHere_IgnoreSomething, 0x6)
 			if (const auto pBuilding = abstract_cast<BuildingClass*, true>(pObject))
 			{
 				if (!TechnoTypeExt::Fetch(pBuilding->Type)->CanBeBuiltOn)
+					return CanNotExistHere;
+			}
+			else if (const auto pTerrain = abstract_cast<TerrainClass*, true>(pObject))
+			{
+				// 上游 #2514: 自定义地基地形仅在 CanBeBuiltOn 时允许 ToTile 放置
+				const auto pType = pTerrain->Type;
+				const auto pExt = TerrainTypeExt::Fetch(pType);
+
+				if (pExt->HasCustomFoundation() && !isTerrainBuildable(pTerrain))
 					return CanNotExistHere;
 			}
 		}
