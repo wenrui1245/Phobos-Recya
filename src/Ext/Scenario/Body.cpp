@@ -1,6 +1,7 @@
-#include "Body.h"
+﻿#include "Body.h"
 
 #include <VeinholeMonsterClass.h>
+#include <limits>
 
 #include <Ext/House/Body.h>
 #include <Misc/Weather.h>
@@ -207,10 +208,9 @@ void ScenarioExt::ExtData::Serialize(T& Stm)
 		.Process(this->SpecialTracker)
 		.Process(this->FallingDownTracker)
 		.Process(this->EVAIndex)
-		.Process(this->BattleAdvantage_PlayerAdvantage)
-		.Process(this->BattleAdvantage_PlayerDisadvantage)
-		.Process(this->BattleAdvantage_PlayerOverwhelming)
-		.Process(this->BattleAdvantage_PlayerStatus)
+		/* BattleAdvantage_* 四项是"本地观察者"的纯表现状态（战斗优势系统的
+		 * 音乐/文字只服务于 HouseClass::CurrentPlayer），各客户端数值天然
+		 * 不同 —— 绝不能进存档流，否则读档时会被某一端的值覆盖所有人。 */
 		.Process(this->FiringAnimUpdateCount)
 		.Process(this->MissionTimer_Type)
 		.Process(this->MissionTimer_Variable)
@@ -369,6 +369,12 @@ DEFINE_HOOK(0x55B4E1, LogicClass_Update_BeforeAll, 0x5)
 
 	if (pRulesExt->BattleAdvantage_Enabled)
 	{
+		// 本地玩家为空（如观战者视角）时不做任何结算：状态机与音乐只服务于本地玩家。
+		auto const pCurrentPlayer = HouseClass::CurrentPlayer;
+
+		if (!pCurrentPlayer)
+			return 0;
+
 		auto const pScenarioExt = ScenarioExt::Global();
 		auto const advantagedecayRate = pRulesExt->BattleAdvantage_AdvantageDecayRate;
 		auto const disadvantageDecayRate = pRulesExt->BattleAdvantage_DisadvantageDecayRate;
@@ -393,7 +399,11 @@ DEFINE_HOOK(0x55B4E1, LogicClass_Update_BeforeAll, 0x5)
 
 		//判断当前战场形势
 		auto BattleIntensity = pScenarioExt->BattleAdvantage_PlayerAdvantage + pScenarioExt->BattleAdvantage_PlayerDisadvantage;
-		auto BattleAdvantage = pScenarioExt->BattleAdvantage_PlayerAdvantage / pScenarioExt->BattleAdvantage_PlayerDisadvantage;
+		/* 分母为 0 时原实现会得到 inf/NaN（两侧皆 0），NaN 让后续所有阈值
+		 * 比较恒为 false，优势判定悄悄失效 —— 显式按"无劣势=全优势"处理。 */
+		auto BattleAdvantage = pScenarioExt->BattleAdvantage_PlayerDisadvantage > 0.0f
+			? pScenarioExt->BattleAdvantage_PlayerAdvantage / pScenarioExt->BattleAdvantage_PlayerDisadvantage
+			: (pScenarioExt->BattleAdvantage_PlayerAdvantage > 0.0f ? std::numeric_limits<float>::infinity() : 1.0f);
 		auto BattleOverwhelming = pScenarioExt->BattleAdvantage_PlayerOverwhelming;
 
 		if (BattleOverwhelming > overwhelmingUpperThreshold && pScenarioExt->BattleAdvantage_PlayerStatus != PlayerAdvantageStatus::Triumphal)
@@ -401,7 +411,7 @@ DEFINE_HOOK(0x55B4E1, LogicClass_Update_BeforeAll, 0x5)
 			//Debug::Log("[BattleAdvantage] Overwhelming: %.1f. Player is overwhelming.\n", BattleOverwhelming);
 			pScenarioExt->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Triumphal;
 
-			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Trumpet;
+			const int themeIndex = HouseTypeExt::ExtMap.Find(pCurrentPlayer->Type)->Music_Trumpet;
 			if (themeIndex >= 0)
 				ThemeClass::Instance.Play(themeIndex);
 		}
@@ -413,7 +423,7 @@ DEFINE_HOOK(0x55B4E1, LogicClass_Update_BeforeAll, 0x5)
 			pScenarioExt->BattleAdvantage_PlayerAdvantage = 0.0f;
 			pScenarioExt->BattleAdvantage_PlayerDisadvantage = 0.0f;
 
-			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Trumpet;
+			const int themeIndex = HouseTypeExt::ExtMap.Find(pCurrentPlayer->Type)->Music_Trumpet;
 			if (themeIndex >= 0)
 				ThemeClass::Instance.Stop(true);
 		}
@@ -422,7 +432,7 @@ DEFINE_HOOK(0x55B4E1, LogicClass_Update_BeforeAll, 0x5)
 			//Debug::Log("[BattleAdvantage] BattleIntensity: %.1f, BattleAdvantage: %.1f. Player is at combat.\n", BattleIntensity, BattleAdvantage);
 			pScenarioExt->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Combat;
 
-			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Combat;
+			const int themeIndex = HouseTypeExt::ExtMap.Find(pCurrentPlayer->Type)->Music_Combat;
 			if (themeIndex >= 0)
 				ThemeClass::Instance.Play(themeIndex);
 		}
@@ -431,7 +441,7 @@ DEFINE_HOOK(0x55B4E1, LogicClass_Update_BeforeAll, 0x5)
 			//Debug::Log("[BattleAdvantage] BattleIntensity: %.1f, BattleAdvantage: %.1f. Player is no longer in combat.\n", BattleIntensity, BattleAdvantage);
 			pScenarioExt->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Normal;
 
-			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Combat;
+			const int themeIndex = HouseTypeExt::ExtMap.Find(pCurrentPlayer->Type)->Music_Combat;
 			if (themeIndex >= 0)
 				ThemeClass::Instance.Stop(true);
 		}
@@ -440,7 +450,7 @@ DEFINE_HOOK(0x55B4E1, LogicClass_Update_BeforeAll, 0x5)
 			//Debug::Log("[BattleAdvantage] BattleIntensity: %.1f, BattleAdvantage: %.1f. Player is at disadvantage.\n", BattleIntensity, BattleAdvantage);
 			pScenarioExt->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Losing;
 
-			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Losing;
+			const int themeIndex = HouseTypeExt::ExtMap.Find(pCurrentPlayer->Type)->Music_Losing;
 			if (themeIndex >= 0)
 				ThemeClass::Instance.Play(themeIndex);
 		}
@@ -449,7 +459,7 @@ DEFINE_HOOK(0x55B4E1, LogicClass_Update_BeforeAll, 0x5)
 			//Debug::Log("[BattleAdvantage] BattleIntensity: %.1f, BattleAdvantage: %.1f. Player is no longer at disadvantage.\n", BattleIntensity, BattleAdvantage);
 			pScenarioExt->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Combat;
 
-			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Combat;
+			const int themeIndex = HouseTypeExt::ExtMap.Find(pCurrentPlayer->Type)->Music_Combat;
 			if (themeIndex >= 0)
 				ThemeClass::Instance.Play(themeIndex);
 		}
@@ -458,7 +468,7 @@ DEFINE_HOOK(0x55B4E1, LogicClass_Update_BeforeAll, 0x5)
 			//Debug::Log("[BattleAdvantage] BattleIntensity: %.1f, BattleAdvantage: %.1f. Player is no longer at disadvantage (Combat End).\n", BattleIntensity, BattleAdvantage);
 			pScenarioExt->BattleAdvantage_PlayerStatus = PlayerAdvantageStatus::Normal;
 
-			const int themeIndex = HouseTypeExt::ExtMap.Find(HouseClass::CurrentPlayer->Type)->Music_Losing;
+			const int themeIndex = HouseTypeExt::ExtMap.Find(pCurrentPlayer->Type)->Music_Losing;
 			if (themeIndex >= 0)
 				ThemeClass::Instance.Stop(true);
 		}

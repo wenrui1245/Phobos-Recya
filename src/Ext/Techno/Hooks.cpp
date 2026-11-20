@@ -857,24 +857,10 @@ DEFINE_HOOK(0x702E4E, TechnoClass_RegisterDestruction_SaveKillerInfo, 0x6)
 					{
 						auto const mult = getVeterancyMultiplier(true) * getMindControlledMultiplier(true);
 						auto const newValue = std::min(maxDisadvantageValue, pScenarioExt->BattleAdvantage_PlayerDisadvantage + getLostValue() * mult);
-						const char* vetName = "Unknown";
 
-						switch (static_cast<int>(pVictim->Veterancy.GetRemainingLevel()))
-						{
-						case 0:
-							vetName = "Elite";
-							break;
-						case 1:
-							vetName = "Veteran";
-							break;
-						case 2:
-							vetName = "Rookie";
-							break;
-						}
-
-						/*Debug::Log("[BattleAdvantage] PlayerDisadvantage: %.1f -> %.1f (lost [%s] vet: %s to enemy [%s] at frame %d, mult=%.1f)\n",
+						/*Debug::Log("[BattleAdvantage] PlayerDisadvantage: %.1f -> %.1f (lost [%s] to enemy [%s] at frame %d, mult=%.1f)\n",
 							pScenarioExt->BattleAdvantage_PlayerDisadvantage, newValue,
-							pVictim->GetTechnoType()->ID, vetName,
+							pVictim->GetTechnoType()->ID,
 							pKillerOwner->Type->ID, Unsorted::CurrentFrame, mult);*/
 
 						pScenarioExt->BattleAdvantage_PlayerDisadvantage = newValue;
@@ -888,24 +874,10 @@ DEFINE_HOOK(0x702E4E, TechnoClass_RegisterDestruction_SaveKillerInfo, 0x6)
 					{
 						auto const mult = getVeterancyMultiplier(false) * getMindControlledMultiplier(false);
 						auto const newValue = std::min(maxAdvantageValue, pScenarioExt->BattleAdvantage_PlayerAdvantage + getKillingValue() * (1.0f + mult));
-						const char* vetName = "Unknown";
 
-						switch (static_cast<int>(pVictim->Veterancy.GetRemainingLevel()))
-						{
-						case 0:
-							vetName = "Elite";
-							break;
-						case 1:
-							vetName = "Veteran";
-							break;
-						case 2:
-							vetName = "Rookie";
-							break;
-						}
-
-						/*Debug::Log("[BattleAdvantage] PlayerAdvantage: %.1f -> %.1f (killed enemy [%s] vet: %s at frame %d, mult=%.1f)\n",
+						/*Debug::Log("[BattleAdvantage] PlayerAdvantage: %.1f -> %.1f (killed enemy [%s] at frame %d, mult=%.1f)\n",
 							pScenarioExt->BattleAdvantage_PlayerAdvantage, newValue,
-							pVictim->GetTechnoType()->ID, vetName,
+							pVictim->GetTechnoType()->ID,
 							Unsorted::CurrentFrame, mult);*/
 
 						pScenarioExt->BattleAdvantage_PlayerAdvantage = newValue;

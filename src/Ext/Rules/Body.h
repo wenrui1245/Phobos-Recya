@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <Utilities/Container.h>
 #include <Utilities/TemplateDef.h>
@@ -1208,12 +1208,15 @@ public:
 			, AIAdjacentMax { -1 }
 			, AIAdjacentMax_Campaign {}
 
+			/* 碾压等级默认值对齐原版语义 (CrusherLevel 5 > CrushableLevel 1 = 可碾;
+			 * OmniCrushResistant/建筑/墙 = 10, 只有显式超过它的碾压者才能碾)。
+			 * 原始移植默认两者同为 5, 导致原版能碾的步兵全部碾不动。 */
 			, CrusherLevel { 5 }
-			, CrushableLevel { 5 }
+			, CrushableLevel { 1 }
 			, OmniCrusherLevel { 10 }
 			, OmniCrushResistantLevel { 10 }
 			, BuildingCrushableLevel { }
-			, WallCrushableLevel { 10 }
+			, WallCrushableLevel { 9 }
 
 			, Parasite_GrappleAnim {}
 			, Parasite_AllowWaterExit {}

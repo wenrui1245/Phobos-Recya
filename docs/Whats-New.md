@@ -18,6 +18,7 @@ You can use the migration utility (can be found on [Phobos supplementaries repo]
 
 - `Cumulative=true` AttachEffect tint effects now stack. This behaviour can be disabled by setting `Tint.Cumulative=false` on the AttachEffect type.
 - In vanilla, when a unit is destroyed, it transfers the tag attached to itself to the vehicle thief or crew, but Ares broke this so that it can only be transferred to crew. Now Phobos allows using [`Survivors.ReplaceTagTo`](Fixed-or-Improved-Logics.md#customize-which-of-vehicle-thief-pilot-and-passenger-the-tag-can-be-transferred-to-when-the-unit-is-destroyed) to customize, when a unit is destroyed, which of the vehicle thief, pilot, and passenger the tag can be transferred to, that is, the default behavior is aligned with vanilla rather than Ares.
+- Crushing is now level-based: see [`CrusherLevel` / `CrushableLevel`](Fixed-or-Improved-Logics.md#crusher-level--crushable-level-system) and the TechnoType keys `CrushLevel.%s` / `CrushableLevel.%s` / `DeployedCrushableLevel.%s`. With the default global values the vanilla behaviour (which units can be crushed by whom) is preserved; units with `Crushable=no` / `Uncrushable=yes` / `OmniCrushResistant=yes` stay uncrushable unless explicitly re-opened via the type-level keys.
 
 #### Changes to Phobos behavior
 

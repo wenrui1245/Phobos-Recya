@@ -1,4 +1,4 @@
-# New / Enhanced Logics
+﻿# New / Enhanced Logics
 
 This page describes all the engine features that are either new and introduced by Phobos or significantly extended or expanded.
 
@@ -428,6 +428,7 @@ ConditionYellow=                            ; floating point value, percents or 
 ConditionRed=                               ; floating point value, percents or absolute
 Armor=none                                  ; ArmorType
 InheritArmorFromTechno=false                ; boolean
+InheritArmor.From=                          ; TechnoType, always inherit the armor of this TechnoType
 InheritArmor.Allowed=                       ; List of TechnoTypes
 InheritArmor.Disallowed=                    ; List of TechnoTypes
 ApplyArmorMult=                             ; boolean, default to [CombatDamage] -> ShieldApplyArmorMult
@@ -529,6 +530,7 @@ Shield.InheritStateOnReplace=false          ; boolean
     - Negative damage weapons will consider targets with active, but not at full health shields in need of healing / repairing unless the Warhead has `Shield.Penetrate=true`, in which case only object health is considered.
   - When a TechnoType has an unbroken shield, `[ShieldType] -> Armor` will replace `[TechnoType] -> Armor` for targeting and damage calculation purposes.
     - `InheritArmorFromTechno` can be set to true to override this so that `[TechnoType] -> Armor` is used even if shield is active and `[ShieldType] -> Armor` is ignored.
+    - `InheritArmor.From` takes a TechnoType and makes the shield always inherit that TechnoType's `Armor`, taking priority over `InheritArmorFromTechno` and the per-TechnoType `Armor`.
     - `InheritArmor.Allowed` lists TechnoTypes whose armor can be overridden. If empty, any TechnoType not listed in `InheritArmor.Disallowed` is okay.
     - `InheritArmor.Disallowed` lists TechnoTypes whose armor can't be overridden. If empty, any TechnoTypes are okay as long as `InheritArmor.Allowed` is empty or they are listed on it.
     - `ApplyArmorMult` can be set to true to allow the shield to benefit from the armor multiplier.
@@ -711,6 +713,7 @@ AttachedSystem=  ; ParticleSystemType
 - It is now possible to customize which players can see an animation using `VisibleTo`.
   - `VisibleTo.ConsiderInvokerAsOwner`, if set, makes it so that animation's invoker house is considered as owner for purposes of `VisibleTo` instead of owning house of TechnoType it is attached to or animation's owning house. On most animations the they are the same, but it can be different for some.
   - Note that this is a purely visual feature, any logic attached to these animations like damage is still processed for all players.
+- `VisibleToObserver`, if set to false, makes the animation invisible to spectator players (observers), while still being visible to the participating players per the `VisibleTo` rules above.
 - `RestrictVisibilityIfCloaked`, if set to true, makes so that attached animations or aircraft `Trailer` animations (due to technical constraints, spawned missile trailers are exempt from this) on cloaked objects are only visible to observers and players who can currently detect them.
 - `DetachOnCloak` can be set to false to override vanilla game behaviour where attached animations are removed from cloaked objects.
 
@@ -718,6 +721,7 @@ In `artmd.ini`:
 ```ini
 [SOMEANIM]                              ; AnimationType
 VisibleTo=all                           ; List of Affected House Enumeration (none|owner/self|allies/ally|team|enemies/enemy|neutral|all)
+VisibleToObserver=true                  ; boolean
 VisibleTo.ConsiderInvokerAsOwner=false  ; boolean
 RestrictVisibilityIfCloaked=false       ; boolean
 DetachOnCloak=true                      ; boolean
@@ -2632,6 +2636,22 @@ ReturnWeapon.ApplyFirepowerMult=        ; boolean, default to [CombatDamage] -> 
 ```
 
 ## Super Weapons
+
+### Superweapon music
+
+When a superweapon is fired, a custom theme can be played for the affected
+players, optionally stopping automatically after a duration.
+
+In `rulesmd.ini`:
+```ini
+[SOMESWPTYPE]               ; SuperWeaponType
+Music.Theme=                ; integer, theme index from [Theme] list in theme.ini, -1 = disabled
+Music.AffectedHouses=       ; AffectedHouse enumeration, default = all. Whose client plays the theme
+Music.Duration=             ; integer, duration in frames; 0 (default) = play until interrupted
+```
+
+The music stops automatically when `Music.Duration` elapses. Playing another
+theme manually stops it as usual with the vanilla theme system.
 
 ### AI Superweapon delay timer
 
@@ -5331,4 +5351,65 @@ CanTargetVeterancy=all      ; List of Affected Veterancy Enumeration (none|rooki
 
 ```{note}
 `CanTarget` explicitly requires either `all` or `empty` to be listed for the weapon to be able to fire at cells containing no TechnoTypes.
+```
+## Battle Advantage System
+
+A global atmosphere-tracking system: the game estimates how well the local
+player is doing from the Points value of destroyed enemies/own losses, and
+exposes the state for music and text cues. Everything below is per-client
+(cosmetic) and never touches game logic or the savegame.
+
+In `rulesmd.ini`:
+```ini
+[CombatDamage]
+BattleAdvantage.Enabled=false             ; boolean, master switch
+BattleAdvantage.KillingValue=1.0          ; float, base advantage gained per enemy Points value
+BattleAdvantage.LostValue=1.0             ; float, base disadvantage gained per own Points value
+BattleAdvantage.AdvantageMaxValue=100.0   ; float, cap of the advantage counter
+BattleAdvantage.DisadvantageMaxValue=100.0; float, cap of the disadvantage counter
+BattleAdvantage.AdvantageDecayRate=0.01   ; float, per-frame decay of the advantage counter
+BattleAdvantage.DisadvantageDecayRate=0.01; float, per-frame decay of the disadvantage counter
+BattleAdvantage.IntensityUpperThreshold=30.0 ; float, advantage+disadvantage above this = combat
+BattleAdvantage.IntensityLowerThreshold=10.0 ; float, below this = out of combat
+BattleAdvantage.CasualtyRatioUpperThreshold=1.5 ; float, advantage/disadvantage above this while in combat = winning
+BattleAdvantage.CasualtyRatioLowerThreshold=0.6 ; float, advantage/disadvantage below this while in combat = losing
+BattleAdvantage.OverwhelmingMaxValue=100.0 ; float, cap of the overwhelming counter
+BattleAdvantage.OverwhelmingDecayRate=0.005 ; float, per-frame decay of the overwhelming counter
+BattleAdvantage.OverwhelmingUpperThreshold=50.0 ; float, above this = triumphal state
+BattleAdvantage.OverwhelmingLowerThreshold=10.0 ; float, below this = leaving triumphal state
+BattleAdvantage.VeteranKillingMultiplier=1.1 ; float, multiplier for killing a veteran victim
+BattleAdvantage.EliteKillingMultiplier=1.3  ; float, multiplier for killing an elite victim
+BattleAdvantage.VeteranLostMultiplier=1.1   ; float, multiplier for losing a veteran unit
+BattleAdvantage.EliteLostMultiplier=1.3     ; float, multiplier for losing an elite unit
+BattleAdvantage.MindControlledKillingMultiplier=0.5 ; float, multiplier for killing a mind-controlled victim
+BattleAdvantage.MindControlledLostMultiplier=0.5  ; float, multiplier for losing a mind-controlled unit
+```
+
+On each TechnoType the contribution values can be overridden (`Points` is the
+vanilla unit cost rating):
+```ini
+[SOMEBRUTALUNIT]            ; TechnoType
+BattleAdvantage.KillingValue=3.0   ; float, default to Points
+BattleAdvantage.LostValue=3.0      ; float, default to Points
+BattleAdvantage.OverwhelmingValue=1.0 ; float, 0.0 by default; adds to the overwhelming counter on kill
+BattleAdvantage.VeteranKillingMultiplier=2.0 ; float, -1.0 by default (use global rules)
+BattleAdvantage.EliteKillingMultiplier=3.0   ; float
+BattleAdvantage.VeteranLostMultiplier=1.0    ; float
+BattleAdvantage.EliteLostMultiplier=1.0      ; float
+BattleAdvantage.MindControlledKillingMultiplier=0.3 ; float
+BattleAdvantage.MindControlledLostMultiplier=0.3    ; float
+```
+
+The resulting state (`Normal` / `Combat` / `Losing` / `Triumphal`) is
+accessible from the scenario extension and drives the per-country music keys:
+when entering `Triumphal` the `Music.Trumpet` theme plays, entering `Combat`
+or leaving `Losing` plays `Music.Combat`, entering `Losing` plays
+`Music.Losing`. Each theme stops when its state ends.
+
+In `rulesmd.ini`:
+```ini
+[SOMECOUNTRY]               ; CountryType (HouseType)
+Music.Combat=               ; integer, theme index from theme.ini, -1 = disabled
+Music.Losing=               ; integer, theme index from theme.ini, -1 = disabled
+Music.Trumpet=              ; integer, theme index from theme.ini, -1 = disabled
 ```

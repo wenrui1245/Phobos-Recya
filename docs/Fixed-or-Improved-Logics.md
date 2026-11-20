@@ -426,6 +426,45 @@ It was originally planned to list global features that are exclusively related t
 
 -->
 
+### Crusher Level / Crushable Level system
+
+Crushing is now resolved by comparing the crusher's crush level against the
+victim's crushable level, instead of the vanilla boolean checks. Default
+global values preserve vanilla behaviour; per-type keys allow fine-grained
+control (e.g. heavy units crushing light ones while being unable to crush
+their own kind).
+
+In `rulesmd.ini`:
+```ini
+[General]
+CrusherLevel=5              ; integer, the crush level of a regular (Crusher=yes) unit
+CrushableLevel=1            ; integer, the crushable level of a regular crushable unit
+OmniCrusherLevel=10         ; integer, the crush level of an OmniCrusher unit
+OmniCrushResistantLevel=10  ; integer, the crushable level of an OmniCrushResistant unit / unit with Crushable=no
+BuildingCrushableLevel=     ; integer, optional, the crushable level of buildings (default: OmniCrushResistantLevel)
+WallCrushableLevel=9        ; integer, the level required to crush walls that are not explicitly Crushable
+```
+
+On each TechnoType the levels can be overridden per veterancy rank (`%s` is
+substituted with `Rookie`, `Veteran` or `Elite`; unconfigured ranks fall back
+to the defaults above; `-1` means "not configured"):
+```ini
+[SOMESTEALTHTANK]           ; TechnoType
+CrushLevel.Rookie=5         ; integer, -1 by default (use global rules)
+CrushLevel.Veteran=7        ; integer
+CrushLevel.Elite=10         ; integer
+CrushableLevel.Rookie=3     ; integer
+CrushableLevel.Veteran=6    ; integer
+CrushableLevel.Elite=9      ; integer
+DeployedCrushableLevel.Rookie=-1  ; integer, crushable level while deployed (infantry), per rank
+```
+
+Note the behaviour change relative to vanilla: `Crushable=no`,
+`Uncrushable=yes` and `OmniCrushResistant=yes` units are no longer
+*absolutely* uncrushable — they fall back to `OmniCrushResistantLevel`
+(uncrushable by default), but a crusher whose crush level is explicitly
+configured higher than the victim's level can crush them.
+
 ### Add a global default value for `KeepAlive`
 
 - Ares added accompanying [map trigger event#87 and event#88](http://ares-developers.github.io/Ares-docs/new/triggerevents.html#all-keepalives-destroyed-87-88) for [`KeepAlive`](http://ares-developers.github.io/Ares-docs/new/keepalive.html), but since using them for non-building technos requires manually adding them one by one, which is very troublesome, now you can use the following flag to define global default values by type.
@@ -2863,6 +2902,22 @@ MinimapColor=  ; integer - Red,Green,Blue
 
 ## Vehicles
 
+### Customizable tank bunker multipliers
+
+You can now customize extra damage or ROF multipliers for vehicle types when
+they enter a tank bunker building. The final multiplier is calculated as the
+product of the unit's extra multiplier and the building's multiplier. If the
+extra multiplier is not set for the vehicle type, it defaults to 1.0 (the
+building's multiplier is used as-is); if the building's multiplier is not
+set, the corresponding default from `[CombatDamage]` is used.
+
+In `rulesmd.ini`:
+```ini
+[SOMEVEHICLE]                          ; VehicleType
+ExtraBunkerDamageMultiplier=1.0        ; floating point value
+ExtraBunkerROFMultiplier=1.0           ; floating point value
+```
+
 ### Allow miners do area guard
 
 - In vanilla, when miners enter area guard mission, they immediately switch to harvest mission. Now you can make them perform area guard mission normally like other technos.
@@ -3351,6 +3406,7 @@ Conventional.IgnoreUnits=       ; boolean, default to [General] -> Conventional.
 - `AffectsBelowPercent` and `AffectsAbovePercent` can be used to set the health percentage thresholds that target needs to be below/equal and/or above of for the Warhead to detonate. If target has zero health left this check is bypassed.
 - `AffectsVeterancy` sets the veterancy levels that allow the Warhead to detonate on the target.
 - If set to `false`, `AffectsNeutral` makes the warhead can't damage or affect target that belongs to neutral house.
+- If set to `false`, `AffectsHarmless` makes the warhead can't damage or affect targets whose current mission is `Sleep` (mission `Harmless`), e.g. units idled via the Sleep mission.
 - If set to `false`, `EffectsRequireVerses` makes the Phobos-introduced warhead effects trigger even if it can't damage the target because of it's current ArmorType (e.g. 0% in `Verses`).
 
 In `rulesmd.ini`:
@@ -3360,6 +3416,7 @@ AffectsBelowPercent=1.0     ; floating point value, percents or absolute
 AffectsAbovePercent=0.0     ; floating point value, percents or absolute
 AffectsVeterancy=all        ; List of Affected Veterancy Enumeration (none|rookie|veteran|elite|all)
 AffectsNeutral=true         ; boolean
+AffectsHarmless=true        ; boolean
 EffectsRequireVerses=false  ; boolean
 ```
 

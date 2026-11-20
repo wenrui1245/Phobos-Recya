@@ -1,4 +1,4 @@
-#include <Ext/Aircraft/Body.h>
+﻿#include <Ext/Aircraft/Body.h>
 #include <Ext/Anim/Body.h>
 #include <Ext/Building/Body.h>
 #include <Ext/House/Body.h>
@@ -643,10 +643,13 @@ int TechnoExt::GetCrushLevel(FootClass* pThis)
 		if (pTypeExt->CrushLevel.Elite >= 0)
 			return pTypeExt->CrushLevel.Elite;
 
+		// 故意贯穿: 高军衔未单独配置时回退到下一档 (军衔专用值 > 全局默认)
+		[[fallthrough]];
 	case Rank::Veteran:
 		if (pTypeExt->CrushLevel.Veteran >= 0)
 			return pTypeExt->CrushLevel.Veteran;
 
+		[[fallthrough]];
 	default:
 		if (pTypeExt->CrushLevel.Rookie >= 0)
 			return pTypeExt->CrushLevel.Rookie;
@@ -678,10 +681,12 @@ int TechnoExt::GetCrushableLevel(TechnoClass* pThis)
 			if (pTypeExt->DeployedCrushableLevel.Elite >= 0)
 				return pTypeExt->DeployedCrushableLevel.Elite;
 
+			[[fallthrough]];
 		case Rank::Veteran:
 			if (pTypeExt->DeployedCrushableLevel.Veteran >= 0)
 				return pTypeExt->DeployedCrushableLevel.Veteran;
 
+			[[fallthrough]];
 		default:
 			if (pTypeExt->DeployedCrushableLevel.Rookie >= 0)
 				return pTypeExt->DeployedCrushableLevel.Rookie;
@@ -690,8 +695,11 @@ int TechnoExt::GetCrushableLevel(TechnoClass* pThis)
 		if (pInfantry->Type->OmniCrushResistant)
 			return RulesExt::Global()->OmniCrushResistantLevel;
 
+		/* 原版 DeployedCrushable=no 的步兵绝对不可碾 —— 回退到"不可碾"档
+		 * (10) 而不是普通 CrushableLevel, 否则全局默认值下调后这类单位会被
+		 * 误碾。想开放它们请显式配置类型级 DeployedCrushableLevel.%s。 */
 		if (!pInfantry->Type->DeployedCrushable)
-			return RulesExt::Global()->CrushableLevel;
+			return RulesExt::Global()->OmniCrushResistantLevel;
 	}
 	else
 	{
@@ -701,10 +709,12 @@ int TechnoExt::GetCrushableLevel(TechnoClass* pThis)
 			if (pTypeExt->CrushableLevel.Elite >= 0)
 				return pTypeExt->CrushableLevel.Elite;
 
+			[[fallthrough]];
 		case Rank::Veteran:
 			if (pTypeExt->CrushableLevel.Veteran >= 0)
 				return pTypeExt->CrushableLevel.Veteran;
 
+			[[fallthrough]];
 		default:
 			if (pTypeExt->CrushableLevel.Rookie >= 0)
 				return pTypeExt->CrushableLevel.Rookie;
@@ -716,8 +726,9 @@ int TechnoExt::GetCrushableLevel(TechnoClass* pThis)
 		if (pType->OmniCrushResistant)
 			return RulesExt::Global()->OmniCrushResistantLevel;
 
+		/* 同上: 原版 Crushable=no 的单位绝对不可碾, 回退"不可碾"档。 */
 		if (!pType->Crushable)
-			return RulesExt::Global()->CrushableLevel;
+			return RulesExt::Global()->OmniCrushResistantLevel;
 	}
 
 	return 0;
