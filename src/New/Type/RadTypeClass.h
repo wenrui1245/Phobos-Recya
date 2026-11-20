@@ -4,6 +4,8 @@
 #include <Utilities/TemplateDef.h>
 #include <Ext/Rules/Body.h>
 
+#include <algorithm>
+
 class WarheadTypeClass;
 
 class RadTypeClass final : public Enumerable<RadTypeClass>
@@ -96,12 +98,12 @@ public:
 
 	int GetLevelDelay() const
 	{
-		return this->LevelDelay.Get(RulesClass::Instance->RadLevelDelay);
+		return std::max(1, this->LevelDelay.Get(RulesClass::Instance->RadLevelDelay));
 	}
 
 	int GetLightDelay() const
 	{
-		return this->LightDelay.Get(RulesClass::Instance->RadLightDelay);
+		return std::max(1, this->LightDelay.Get(RulesClass::Instance->RadLightDelay));
 	}
 
 	double GetLevelFactor() const

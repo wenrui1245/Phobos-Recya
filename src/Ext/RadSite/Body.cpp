@@ -76,12 +76,12 @@ void RadSiteExt::CreateLight()
 
 	const double lightFactor = Math::min(pThis->RadLevel * pType->GetLightFactor(), 2000.0);
 	const int duration = pThis->RadDuration;
-	const int intensitySteps = duration / lightDelay;
+	const int intensitySteps = std::max(1, duration / lightDelay);
 
 	pThis->Intensity = Game::F2I(lightFactor);
-	pThis->LevelSteps = duration / levelDelay;
+	pThis->LevelSteps = std::max(1, duration / levelDelay);
 	pThis->IntensitySteps = intensitySteps;
-	pThis->IntensityDecrement = intensitySteps ? Game::F2I(lightFactor) / intensitySteps : 0;
+	pThis->IntensityDecrement = pThis->Intensity / intensitySteps;
 
 	const auto radcolor = pType->GetColor();
 	const double tintFactor = pType->GetTintFactor();
@@ -98,7 +98,6 @@ void RadSiteExt::CreateLight()
 
 	if (pThis->LightSource)
 	{
-		//pThis->LightSource->ChangeLevels(Game::F2I(lightFactor), nTintBuffer, false);
 		this->LightDirty = true;
 	}
 	else if (const auto pCell = MapClass::Instance.TryGetCellAt(pThis->BaseCell))
@@ -117,7 +116,9 @@ void RadSiteExt::Add(int amount)
 {
 	const auto pThis = this->OwnerObject();
 	const auto pRadExt = RadSiteExt::Fetch(pThis);
-	const int value = pThis->RadLevel * pThis->RadTimeLeft / pThis->RadDuration;
+	const int value = pThis->RadDuration > 0
+		? static_cast<int>(static_cast<long long>(pThis->RadLevel) * pThis->RadTimeLeft / pThis->RadDuration)
+		: 0;
 	pThis->Deactivate();
 	pThis->RadLevel = value + amount;
 	pThis->RadDuration = pThis->RadLevel * pRadExt->Type->GetDurationMultiple();

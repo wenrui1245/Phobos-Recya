@@ -1,253 +1,359 @@
-﻿/* LightConvFix.cpp - 光照变更后的每格 LightConvert 刷新（灯光抗锯齿）。
- * 移植自 MagicShiba/MO_ExperienceEnhancements src/misc/LightConvFix.cpp（GPL 项目内引用，来源无许可证）。
- * 原 LightConv_TriggerTint（按比例染色）属 LightingPreset 范围，不移植。
+/* Local light batching and lazy terrain palettes.
+ * The original ambient refresh was ported from MagicShiba/MO_ExperienceEnhancements.
  */
 #include "LightConvFix.h"
+#include "LightContribution.h"
 
-#include <Windows.h>
-#include <cstddef>
-
-#include <ScenarioClass.h>
 #include <CellClass.h>
+#include <GameOptionsClass.h>
+#include <LightSourceClass.h>
 #include <MapClass.h>
-#include <Utilities/Debug.h>
 #include <Phobos.h>
-
-/* ---------------- 引擎访问点 ----------------
- * YRpp 已命名：MapClass::Instance(0x87F7E8)、ScenarioClass::Instance(0xA8B230)、
- * AmbientCurrent、NormalLighting.Tint(R/G/B)、CellClass::InitLightConvert、
- * CellClass::LightConvert。
- * YRpp 未命名（裸偏移，来源 MOEx 实测）：
- *   MapClass+0x13C = 格子指针数组基址（512*512 槽，引擎越界判定同值）。 */
-
-#define LF_OFF_BASE    0x13Cu   /* MapClass+0x13C = 格子指针数组基址 */
-
-/* UpdateCellLighting (0x4AE4C0)：fastcall，ECX = MapClass 对象（0x87F7E8）。
- * YRpp 把它声明成无参静态，ECX 语义没有体现，为与 MOEx 行为逐字一致
- * 这里保留裸函数指针。 */
-typedef void (__fastcall *LF_FnScen)(void* scen);
-
-static LF_FnScen s_CellUpd = (LF_FnScen)(size_t)0x4AE4C0u;
-
-/* 偏移锁定：字段对不上立刻编译失败，退回裸偏移。 */
-static_assert(offsetof(ScenarioClass, AmbientCurrent) == 0x352Cu, "ScenarioClass::AmbientCurrent offset mismatch");
-static_assert(offsetof(ScenarioClass, NormalLighting) == 0x3534u, "ScenarioClass::NormalLighting offset mismatch");
-static_assert(offsetof(CellClass, LightConvert) == 0x34u, "CellClass::LightConvert offset mismatch");
-
-static int s_Init, s_On = 1;
-static int s_PendingRebuild = 0;   /* 读档/新开局就绪后补刷一轮 */
-static int s_Busy;                 /* 保留 MOEx 语义位：池 Count 被临时压过时禁止重建 */
-static unsigned s_LastAmb, s_LastR, s_LastG, s_LastB;
-static unsigned s_LastTick, s_LastSig;  /* 刷新日志去重（规模 + 1 秒） */
-static int s_HaveSig;
-
-/* 注意：LightConvert 池的 Count 地址按 MOEx 实测 = 0x87F6A8
- * （YRpp 的 LightConvertClass::Array 定义在 0x87F698，Count 落点与实测差 4 字节，
- * 为保守起见这里沿用 MOEx 的裸地址；本文件只有日志规模去重用到 Count 概念，
- * 染色功能未移植，实际上不依赖这两个地址）。 */
-
-static unsigned LF_CellBase()
-{
-	/* MapClass::Instance 是引用（对象即 0x87F7E8 处），取地址得到格子数组宿主。
-	 * 场景启动早期 MapClass+0x13C 可能尚未赋值（0）或残留上局的值（垃圾），
-	 * 必须做合理性检查，绝不能拿着未校验的 base 去解引用 262144 个槽。 */
-	unsigned base = *reinterpret_cast<unsigned*>(
-		reinterpret_cast<unsigned char*>(&MapClass::Instance) + LF_OFF_BASE);
-	if (base < 0x00010000u || base >= 0x7FF00000u || (base & 3u))
-		return 0;
-	return base;
-}
-
-/* 引擎堆对象活性判定：指针粗判 + 虚表必须落在 gamemd 静态区。
- * 场景启动/收尾阶段 MapClass 等全局对象可能尚未构造或已析构，
- * 地址"看起来正常"但虚表已经不对 —— 靠它把住裸调引擎函数的门。 */
-static int LF_ObjectAlive(void* p)
-{
-	unsigned vt;
-
-	if (!p) return 0;
-	unsigned u = (unsigned)(size_t)p;
-	if (u < 0x00010000u || u >= 0x7FF00000u || (u & 3u)) return 0;
-	vt = *(unsigned*)p;
-	return vt >= 0x401000u && vt < 0x8AC000u;
-}
-
-int LightConv_WorldReady()
-{
-	return LF_CellBase() != 0;
-}
-
-static void LF_EnsureInit()
-{
-	if (s_Init) return;
-	s_Init = 1;
-	s_On = Phobos::Config::LightConvert_AutoFix ? 1 : 0;
-	Debug::Log(s_On ? "lightingfix: ON\n" : "lightingfix: OFF (engine original, no auto refresh)\n");
-}
-
-int LightConv_Enabled()
-{
-	LF_EnsureInit();
-	return s_On;
-}
-
-/* 光照签名：AmbientCurrent + tint 三色，变了才值得全格扫。 */
-static void LF_StoreSig()
-{
-	auto const pScen = ScenarioClass::Instance;
-	if (!pScen) return;
-	s_LastAmb = (unsigned)pScen->AmbientCurrent;
-	s_LastR = (unsigned)pScen->NormalLighting.Tint.Red;
-	s_LastG = (unsigned)pScen->NormalLighting.Tint.Green;
-	s_LastB = (unsigned)pScen->NormalLighting.Tint.Blue;
-	s_HaveSig = 1;
-}
-
-static int LF_SigChanged()
-{
-	auto const pScen = ScenarioClass::Instance;
-	if (!pScen) return 0;
-	if (s_HaveSig
-		&& (unsigned)pScen->AmbientCurrent == s_LastAmb
-		&& (unsigned)pScen->NormalLighting.Tint.Red == s_LastR
-		&& (unsigned)pScen->NormalLighting.Tint.Green == s_LastG
-		&& (unsigned)pScen->NormalLighting.Tint.Blue == s_LastB)
-		return 0;
-	return 1;
-}
-
-/* 全格重建：InitLightConvert(null) 内部走 CalculateLightSourceLighting
- * (0x484180) 读 AmbientCurrent 与 tint，每格算出自己那份颜色。 */
-static void LF_RefreshAll(int force)
-{
-	unsigned base, slot, old, cells = 0, rebuilt = 0, nSeen = 0, i;
-	unsigned tick, sig;
-	void* c;
-	void* conv;
-	void* seen[512]; /* 地形用到的不同 convert 件数上限 */
-
-	base = LF_CellBase();
-	if (!base) return;
-
-	for (slot = 0; slot < 512u * 512u; slot++)
-	{
-		c = *reinterpret_cast<void**>(base + slot * 4);
-		/* 格子指针逐个粗判: 数组基址合理不代表槽内容干净 (启动早期/收尾期
-		 * 可能残留上局或未完成的值), 垃圾槽直接跳过。 */
-		if (!c) continue;
-		{
-			unsigned u = (unsigned)(size_t)c;
-			if (u < 0x00010000u || u >= 0x7FF00000u || (u & 3u)) continue;
-		}
-		cells++;
-		old = (unsigned)(size_t)*reinterpret_cast<void**>((unsigned char*)c + 0x34);
-		reinterpret_cast<CellClass*>(c)->InitLightConvert(nullptr, 0x10000, 0, 1000, 1000, 1000);
-		conv = *reinterpret_cast<void**>((unsigned char*)c + 0x34);
-		if ((unsigned)(size_t)conv != old)
-			rebuilt++;
-		if (!conv) continue;
-		for (i = 0; i < nSeen; i++)
-			if (seen[i] == conv) break;
-		if (i == nSeen && nSeen < 512) seen[nSeen++] = conv;
-	}
-
-	sig = cells ^ (rebuilt << 3);
-	tick = GetTickCount();
-	if (!force && sig == s_LastSig && tick - s_LastTick < 1000) return;
-	s_LastSig = sig;
-	s_LastTick = tick;
-
-	auto const pScen = ScenarioClass::Instance;
-	Debug::Log("lightconv: cells=%u rebuilt=%u convs=%u amb=%d\n",
-		cells, rebuilt, nSeen, pScen ? pScen->AmbientCurrent : 0);
-}
-
-/* ---------------- 钩子体（由 .cpp 底部的 DEFINE_HOOK 调用） ---------------- */
-
-/* 两处引擎调用点（call UpdateCellLighting，钩子替换掉的就是这条 call）的公共体：
- * 自己调原函数完成标量重算，环境光/tint 签名变了才全格重建 convert，返回被覆盖
- * call 的下一条。
- *
- * 关闭开关也必须自己调原函数后返回 after，不能返回 0 交给 Syringe 重放：站点
- * 这 5 字节就是 `E8 rel32`，桩池副本不重定位 rel32，换地址执行后目标平移成野
- * 地址（MOEx notes/崩溃定位.md 的教训）。 */
-static DWORD LF_HookBody(DWORD after)
-{
-	LF_EnsureInit();
-	s_CellUpd(reinterpret_cast<void*>(0x87F7E8u)); /* MapClass::Instance */
-	if (!s_On || s_Busy) return after;
-	if (LF_SigChanged()) LF_RefreshAll(0);
-	LF_StoreSig();
-	return after;
-}
-
-DWORD LightConv_OnRecalc()
-{
-	return LF_HookBody(0x53ADE0u); /* 0x53ADDB + 5 */
-}
-
-DWORD LightConv_OnStep()
-{
-	return LF_HookBody(0x55B4CBu); /* 0x55B4C6 + 5 */
-}
-
-void LightConv_NotifyLoadReady()
-{
-	/* 读档就绪 / 新开局：签名可能已"对齐"，强制补刷一轮。 */
-	s_PendingRebuild = 1;
-}
-
-void LightConv_RebuildCells()
-{
-	LF_EnsureInit();
-	/* 场景启动/收尾阶段 MapClass::Instance 可能尚未构造或已析构
-	 * (snapshot 16-11 11:23: 一进游戏就崩, LightConv_AfterMapTick 栈),
-	 * 裸调 UpdateCellLighting 前必须先确认对象活着。 */
-	if (!LF_ObjectAlive(&MapClass::Instance)) return;
-	s_CellUpd(reinterpret_cast<void*>(0x87F7E8u));
-	LF_RefreshAll(1);
-	LF_StoreSig();
-}
-
-void LightConv_AfterMapTick()
-{
-	if (s_PendingRebuild)
-	{
-		/* 世界未就绪时保留标志, 等就绪后的帧再补刷 (启动早期首帧可能还没
-		 * 准备好, 这里清了标志补刷就永久丢了)。 */
-		if (!LF_ObjectAlive(&MapClass::Instance) || !LF_CellBase())
-			return;
-		s_PendingRebuild = 0;
-		LightConv_RebuildCells();
-	}
-}
-
-/* ---------------- Syringe 钩子 ---------------- */
-
+#include <ScenarioClass.h>
+#include <Unsorted.h>
+#include <Utilities/Debug.h>
 #include <Helpers/Macro.h>
 
-/* 0x53ADDB(5B): RecalcLighting 内 call UpdateCellLighting。 */
+#include <bitset>
+#include <unordered_map>
+#include <vector>
+
+namespace
+{
+	using namespace LightContribution;
+
+	struct CellWeight
+	{
+		int Index;
+		int Weight;
+	};
+
+	struct Source
+	{
+		Geometry Area {};
+		Channels Light {};
+		std::vector<CellWeight> Cells;
+		bool Seen = false;
+	};
+
+	struct Ambient
+	{
+		int Level;
+		TintStruct Tint;
+		bool operator==(const Ambient& other) const
+		{
+			return Level == other.Level && Tint == other.Tint;
+		}
+	};
+
+	static_assert(MapClass::MaxCells == MaxCells);
+	std::unordered_map<const LightSourceClass*, Source> Sources;
+	std::vector<Total> Totals;
+	std::vector<unsigned> CellVersions;
+	std::vector<int> DirtyCells;
+	std::bitset<MaxCells> Dirty;
+	unsigned AmbientVersion = 0;
+	Ambient LastAmbient {};
+	int LastDetail = -1;
+	bool Pending = false;
+	bool PendingAmbient = false;
+	bool CacheValid = false;
+	bool NativeFallback = false;
+	const CellClass* Refreshing = nullptr;
+
+	struct Measurements
+	{
+		unsigned Batches = 0;
+		unsigned SourcesRead = 0;
+		unsigned Deltas = 0;
+		unsigned LocalCells = 0;
+		unsigned AmbientCells = 0;
+		unsigned ConverterChanges = 0;
+		LONGLONG Ticks = 0;
+		DWORD Since = 0;
+	} Stats;
+
+	bool Ready()
+	{
+		const auto& cells = MapClass::Instance.Cells;
+		return Unsorted::ScenarioStarted && ScenarioClass::Instance && cells.Items && cells.Capacity == MaxCells;
+	}
+
+	int CellIndex(const CellStruct& cell)
+	{
+		if (static_cast<unsigned>(cell.X) >= MapWidth || static_cast<unsigned>(cell.Y) >= MapWidth)
+			return -1;
+		return cell.Y * MapWidth + cell.X;
+	}
+
+	Channels ReadChannels(const LightSourceClass& light)
+	{
+		return { light.LightIntensity, light.LightTint.Red, light.LightTint.Green, light.LightTint.Blue };
+	}
+
+	Geometry ReadGeometry(const LightSourceClass& light)
+	{
+		return { light.Location.X, light.Location.Y, light.LightVisibility };
+	}
+
+	void UpdateAmbientVersion()
+	{
+		const auto scen = ScenarioClass::Instance;
+		if (!scen)
+			return;
+		const Ambient current { scen->AmbientCurrent, scen->NormalLighting.Tint };
+		if (PendingAmbient || current != LastAmbient)
+		{
+			PendingAmbient = false;
+			LastAmbient = current;
+			if (++AmbientVersion == 0)
+			{
+				std::fill(CellVersions.begin(), CellVersions.end(), 0);
+				AmbientVersion = 1;
+			}
+		}
+	}
+
+	void ApplySource(const Source& source, const Channels& previous, const Channels& next, bool markDirty)
+	{
+		Stats.Deltas += static_cast<unsigned>(source.Cells.size());
+		for (const auto [index, weight] : source.Cells)
+		{
+			if (Apply(Totals[index], weight, previous, next) && markDirty && !Dirty[index])
+			{
+				Dirty.set(index);
+				DirtyCells.push_back(index);
+			}
+		}
+	}
+
+	void SynchronizeSources(int detail, bool markDirty)
+	{
+		if (Totals.empty())
+		{
+			Totals.resize(MaxCells);
+			CellVersions.resize(MaxCells);
+		}
+
+		NativeFallback = false;
+		for (const auto light : LightSourceClass::Array)
+		{
+			++Stats.SourcesRead;
+			if (!light || !light->Activated || light->DetailLevel > detail)
+				continue;
+			const auto area = ReadGeometry(*light);
+			const auto channels = ReadChannels(*light);
+			if (!Supported(area, channels))
+			{
+				NativeFallback = true;
+				continue;
+			}
+
+			auto& source = Sources[light];
+			source.Seen = true;
+			if (source.Area == area)
+			{
+				if (source.Light != channels)
+					ApplySource(source, source.Light, channels, markDirty);
+			}
+			else
+			{
+				ApplySource(source, source.Light, {}, markDirty);
+				source.Area = area;
+				source.Cells.clear();
+				ForEachCell(area, [](double distance) { return Game::F2I(distance); },
+					[&](int index, int weight) { source.Cells.push_back({ index, weight }); });
+				ApplySource(source, {}, channels, markDirty);
+			}
+			source.Light = channels;
+		}
+
+		for (auto it = Sources.begin(); it != Sources.end();)
+		{
+			if (!it->second.Seen)
+			{
+				ApplySource(it->second, it->second.Light, {}, markDirty);
+				it = Sources.erase(it);
+			}
+			else
+			{
+				it->second.Seen = false;
+				++it;
+			}
+		}
+		LastDetail = detail;
+		CacheValid = true;
+	}
+
+	void Refresh(CellClass* cell, int index)
+	{
+		const auto previous = cell->LightConvert;
+		const auto saved = Refreshing;
+		Refreshing = cell;
+		cell->InitLightConvert();
+		Refreshing = saved;
+		CellVersions[index] = AmbientVersion;
+		Stats.ConverterChanges += previous != cell->LightConvert;
+	}
+
+	void ReportMeasurements()
+	{
+		const auto now = GetTickCount();
+		if (!Stats.Since)
+			Stats.Since = now;
+		if (now - Stats.Since < 5000)
+			return;
+		if (Stats.Batches || Stats.AmbientCells)
+		{
+			LARGE_INTEGER frequency {};
+			QueryPerformanceFrequency(&frequency);
+			const double batchMs = frequency.QuadPart ? 1000.0 * Stats.Ticks / frequency.QuadPart : 0.0;
+			Debug::Log("[Lighting] batches=%u sourceChecks=%u cellDeltas=%u localCells=%u ambientCells=%u paletteChanges=%u batchMs=%.2f\n",
+				Stats.Batches, Stats.SourcesRead, Stats.Deltas, Stats.LocalCells, Stats.AmbientCells,
+				Stats.ConverterChanges, batchMs);
+		}
+		Stats = {};
+		Stats.Since = now;
+	}
+
+	void BeforeDraw()
+	{
+		if (!Phobos::Config::LightConvert_AutoFix || !Ready())
+			return;
+		UpdateAmbientVersion();
+		const int detail = GameOptionsClass::Instance.DetailLevel;
+		if (Pending || !CacheValid || detail != LastDetail)
+		{
+			LARGE_INTEGER start {}, end {};
+			QueryPerformanceCounter(&start);
+			SynchronizeSources(detail, Pending || CacheValid);
+			Pending = false;
+			for (const int index : DirtyCells)
+			{
+				if (const auto cell = MapClass::Instance.Cells.Items[index])
+				{
+					Refresh(cell, index);
+					++Stats.LocalCells;
+				}
+				Dirty.reset(index);
+			}
+			DirtyCells.clear();
+			QueryPerformanceCounter(&end);
+			Stats.Ticks += end.QuadPart - start.QuadPart;
+			++Stats.Batches;
+		}
+		ReportMeasurements();
+	}
+
+	bool QueueLight(const LightSourceClass& light, bool deferred)
+	{
+		if (!Phobos::Config::LightConvert_AutoFix || !Ready())
+			return false;
+		const bool first = !Pending;
+		Pending = true;
+		if (deferred || !Supported(ReadGeometry(light), ReadChannels(light)))
+			return false;
+		if (first)
+			MapClass::Instance.MarkNeedsRedraw(1);
+		return true;
+	}
+
+	DWORD Recalculate(DWORD after)
+	{
+		// Retain the engine's synchronous scalar update. Only the extra
+		// LightConvert rebuild is deferred until a cell is drawn.
+		reinterpret_cast<void(__fastcall*)(MapClass*)>(0x4AE4C0)(&MapClass::Instance);
+		if (Phobos::Config::LightConvert_AutoFix)
+			UpdateAmbientVersion();
+		return after;
+	}
+}
+
+void LightConv_Reset()
+{
+	Sources.clear();
+	Totals.clear();
+	CellVersions.clear();
+	DirtyCells.clear();
+	Dirty.reset();
+	LastDetail = -1;
+	AmbientVersion = 0;
+	LastAmbient = {};
+	Pending = PendingAmbient = CacheValid = NativeFallback = false;
+	Refreshing = nullptr;
+	Stats = {};
+}
+
 DEFINE_HOOK(0x53ADDB, LightConv_Recalc, 0x5)
 {
-	return LightConv_OnRecalc();
+	return Recalculate(0x53ADE0);
 }
 
-/* 0x55B4C6(5B): 环境光渐变步进内 call UpdateCellLighting。 */
 DEFINE_HOOK(0x55B4C6, LightConv_Step, 0x5)
 {
-	return LightConv_OnStep();
+	return Recalculate(0x55B4CB);
 }
 
-/* 引擎把"世界已就绪"置位的两条指令（新开局/读档各一条，站点与 MOEx LightingPreset 同）：
- * 只置标志，AfterMap 钩里补刷。 */
 DEFINE_HOOK(0x67E6C4, LightConv_LoadReady, 0x6)
 {
-	LightConv_NotifyLoadReady();
+	PendingAmbient = true;
 	return 0;
 }
 
 DEFINE_HOOK(0x683E75, LightConv_ScenStart, 0x7)
 {
-	LightConv_NotifyLoadReady();
+	PendingAmbient = true;
 	return 0;
+}
+
+// Native activation and detail checks have passed, and the aligned frame
+// is established. Preserve the engine's queued-light mode and its epilogue.
+DEFINE_HOOK(0x554B33, LightSourceClass_QueueLightingRefresh, 0xA)
+{
+	GET(const LightSourceClass*, light, EDI);
+	GET_BASE(const bool, deferred, 0x8);
+	return QueueLight(*light, deferred) ? 0x554D16 : 0;
+}
+
+// Retint has finished, and the tactical terrain/object passes are next.
+DEFINE_HOOK(0x6D4476, TacticalClass_FlushLightChanges, 0x7)
+{
+	BeforeDraw();
+	return 0;
+}
+
+// Both the dirty-cell and the terrain redraw paths read the cell palette.
+DEFINE_HOOK_AGAIN(0x480350, CellClass_RefreshAmbientPaletteOnDraw, 0x7)
+DEFINE_HOOK(0x4801F0, CellClass_RefreshAmbientPaletteOnDraw, 0x5)
+{
+	GET(CellClass*, cell, ECX);
+	if (CacheValid && Phobos::Config::LightConvert_AutoFix && Ready())
+	{
+		const int index = CellIndex(cell->MapCoords);
+		if (index >= 0 && MapClass::Instance.Cells.Items[index] == cell && CellVersions[index] != AmbientVersion)
+		{
+			Refresh(cell, index);
+			++Stats.AmbientCells;
+		}
+	}
+	return 0;
+}
+
+// The native prologue initialized ambient and tint. Replace only the additive
+// source loop. The engine still handles cell height, clamping and converters.
+DEFINE_HOOK(0x48427D, CellClass_UseCachedLightContributions, 0x6)
+{
+	GET(const CellClass*, cell, EDI);
+	if (cell != Refreshing || NativeFallback)
+		return 0;
+	const auto& total = Totals[CellIndex(cell->MapCoords)];
+	GET_STACK(int*, light, 0x44);
+	GET_STACK(int*, red, 0x54);
+	GET_STACK(int*, green, 0x58);
+	GET_STACK(int*, blue, 0x5C);
+	*light = static_cast<int>(static_cast<std::uint32_t>(*light) + total[0]);
+	*red = static_cast<int>(static_cast<std::uint32_t>(*red) + total[1]);
+	*green = static_cast<int>(static_cast<std::uint32_t>(*green) + total[2]);
+	*blue = static_cast<int>(static_cast<std::uint32_t>(*blue) + total[3]);
+	return 0x48445F;
 }

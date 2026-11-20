@@ -469,8 +469,10 @@ DEFINE_HOOK(0x65BAC1, RadSiteClass_UpdateLevel, 0x8)// RadSiteClass_Radiate_Incr
 	GET(const int, distance, EAX);
 	const int max = pThis->SpreadInLeptons;
 
-	if (distance <= max)
+	if (distance >= 0 && distance <= max)
 	{
+		const double fraction = max ? static_cast<double>(max - distance) / max : 1.0;
+		const int levelSteps = std::max(pThis->LevelSteps, 1);
 		CellStruct* cell = nullptr;
 
 		if (R->Origin() == 0x65BAC1)
@@ -488,7 +490,7 @@ DEFINE_HOOK(0x65BAC1, RadSiteClass_UpdateLevel, 0x8)// RadSiteClass_Radiate_Incr
 
 			if (R->Origin() == 0x65BAC1)
 			{
-				const int level = static_cast<int>(static_cast<double>(max - distance) / max * pThis->RadLevel);
+				const int level = static_cast<int>(fraction * pThis->RadLevel);
 
 				if (it != radLevels.end())
 					it->Level = std::min(it->Level + level, RadSiteExt::Fetch(pThis)->Type->GetLevelMax());
@@ -500,17 +502,8 @@ DEFINE_HOOK(0x65BAC1, RadSiteClass_UpdateLevel, 0x8)// RadSiteClass_Radiate_Incr
 				if (it != radLevels.end())
 				{
 					GET_STACK(const int, stepCount, STACK_OFFSET(0x70, -0x30));
-					const int level = static_cast<int>(static_cast<double>(max - distance) / max * pThis->RadLevel / pThis->LevelSteps * stepCount);
+					const int level = static_cast<int>(fraction * pThis->RadLevel / levelSteps * stepCount);
 					it->Level = std::max(it->Level - std::max(level, 0), 0);
-				}
-			}
-			else if (R->Origin() == 0x65BC6E)
-			{
-				if (it != radLevels.end())
-				{
-					GET_STACK(int, timeParam, STACK_OFFSET(0x70, -0x30));
-					const int amount = Game::F2I(static_cast<double>(max - distance) / max * pThis->RadLevel / pThis->LevelSteps * timeParam);
-					it->Level -= amount;
 				}
 			}
 			else
@@ -518,7 +511,7 @@ DEFINE_HOOK(0x65BAC1, RadSiteClass_UpdateLevel, 0x8)// RadSiteClass_Radiate_Incr
 				if (it != radLevels.end())
 				{
 					const int stepCount = pThis->RadTimeLeft / RadSiteExt::Fetch(pThis)->Type->GetLevelDelay();
-					const int level = static_cast<int>(static_cast<double>(max - distance) / max * pThis->RadLevel / pThis->LevelSteps * stepCount);
+					const int level = static_cast<int>(fraction * pThis->RadLevel / levelSteps * stepCount);
 					it->Level = std::max(level, 0);
 				}
 			}

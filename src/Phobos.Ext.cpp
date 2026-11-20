@@ -1,4 +1,5 @@
 ﻿#include <Phobos.h>
+#include <Misc/LightConvFix.h>
 
 #include <LoadOptionsClass.h>
 
@@ -355,6 +356,7 @@ DEFINE_HOOK(0x7258D0, AnnounceInvalidPointer, 0x6)
 
 DEFINE_HOOK(0x685659, Scenario_ClearClasses, 0xa)
 {
+	LightConv_Reset();
 	PhobosTypeRegistry::Clear();
 	return 0;
 }
