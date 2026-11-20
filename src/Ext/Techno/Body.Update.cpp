@@ -587,6 +587,23 @@ void TechnoExt::UpdateLaserTrails()
 
 		auto const trailLoc = TechnoExt::GetFLHAbsoluteCoords(pThis, pTrail->FLH, pTrail->IsOnTurret);
 
+		if (pType->DrawType == LaserTrailDrawType::Anim)
+		{
+			// 起步/刹车动画各自只在状态切换时播放一次，用当前任务判定移动状态（同 KratosPP，且不受每帧更新次数影响）
+			bool const isMoving = pThis->CurrentMission == Mission::Move || pThis->CurrentMission == Mission::AttackMove;
+
+			if (isMoving != pTrail->IsMoving)
+			{
+				if (pTrail->Visible && !pTrail->Cloaked)
+				{
+					CoordStruct const behindLoc = pTrail->LastLocation.isset() ? pTrail->LastLocation.Get() : trailLoc;
+					pTrail->SpawnAnim(isMoving ? pType->Anim_Start : pType->Anim_Stop, behindLoc, trailLoc);
+				}
+
+				pTrail->IsMoving = isMoving;
+			}
+		}
+
 		if (cloakState == CloakState::Uncloaking && !pType->CloakVisible)
 			pTrail->LastLocation = trailLoc;
 		else

@@ -398,7 +398,7 @@ LaserTrail.Types=SOMETRAIL       ; List of LaserTrailTypes
 ```
 
 ```{note}
-With `DrawType=anim` the trail is drawn as a chain of animations instead of a laser line. `Anim.Start` and `Anim.Stop` are played once when the trail owner starts and stops moving, respectively, while entries from `Anim.While` are spawned every `SegmentLength` of travel. When an animation list contains 8 or a multiple of 8 entries, the entry is selected from the horizontal direction of the trail segment (same convention as KratosPP); otherwise a random entry is used.
+With `DrawType=anim` the trail is drawn as a chain of animations instead of a laser line. `Anim.Start` and `Anim.Stop` are played once when the trail owner starts and stops moving, respectively, while entries from `Anim.While` are spawned every `SegmentLength` of travel. Whether a techno is moving is determined by its current mission (`Move` / `AttackMove`, same as KratosPP). When an animation list contains 8 or a multiple of 8 entries, the entry is selected from the horizontal direction of the trail segment (same convention as KratosPP); otherwise a random entry is used.
 ```
 
 ```{warning}

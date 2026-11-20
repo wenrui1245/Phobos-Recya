@@ -17,26 +17,6 @@ bool LaserTrailClass::Update(CoordStruct location)
 	auto const pType = this->Type;
 	bool result = false;
 
-	// 动画尾焰依靠帧间位移区分起步、行进与刹车三种状态
-	if (pType->DrawType == LaserTrailDrawType::Anim && this->LastFrameLocation.isset())
-	{
-		CoordStruct const lastFrame = this->LastFrameLocation.Get();
-		bool const inMotion = location.DistanceFromSquared(lastFrame) > 1.0;
-
-		if (this->Visible && !this->Cloaked)
-		{
-			if (inMotion && !this->IsMoving)
-				result |= this->DrawAnim(pType->Anim_Start, lastFrame, location);
-			else if (!inMotion && this->IsMoving)
-				result |= this->DrawAnim(pType->Anim_Stop, lastFrame, location);
-		}
-
-		this->IsMoving = inMotion;
-	}
-
-	if (pType->DrawType == LaserTrailDrawType::Anim)
-		this->LastFrameLocation = location;
-
 	const double segmentLength = (double)pType->SegmentLength;
 
 	if (!this->LastLocation.isset())
@@ -51,7 +31,7 @@ bool LaserTrailClass::Update(CoordStruct location)
 		{
 			if (pType->DrawType == LaserTrailDrawType::Anim)
 			{
-				this->DrawAnim(pType->Anim_While, this->LastLocation.Get(), location);
+				this->SpawnAnim(pType->Anim_While, this->LastLocation.Get(), location);
 			}
 			else if (pType->DrawType == LaserTrailDrawType::Laser)
 			{
@@ -113,7 +93,7 @@ bool LaserTrailClass::Update(CoordStruct location)
 }
 
 // 生成一段动画尾焰，返回是否成功创建动画。
-bool LaserTrailClass::DrawAnim(std::vector<AnimTypeClass*> const& animTypes, CoordStruct behindPos, CoordStruct currentPos)
+bool LaserTrailClass::SpawnAnim(std::vector<AnimTypeClass*> const& animTypes, CoordStruct behindPos, CoordStruct currentPos)
 {
 	auto const count = animTypes.size();
 

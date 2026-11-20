@@ -14,8 +14,7 @@ public:
 	Nullable<CoordStruct> LastLocation;
 	bool Intrinsic;
 	HouseClass* Owner;
-	// 仅动画尾焰使用：上一帧位置与移动状态，用于区分起步/行进/刹车动画（瞬态，不存档）
-	Nullable<CoordStruct> LastFrameLocation;
+	// 仅动画尾焰使用：记录上一次判定的移动状态，用于起步/刹车动画只触发一次（瞬态，不存档）
 	bool IsMoving;
 
 	LaserTrailClass(LaserTrailTypeClass* pTrailType, HouseClass* pHouse = nullptr,
@@ -29,7 +28,6 @@ public:
 		, LastLocation {}
 		, Intrinsic { true }
 		, Owner { pHouse }
-		, LastFrameLocation {}
 		, IsMoving { false }
 	{
 		if (this->Type->IsHouseColor && pHouse)
@@ -46,18 +44,16 @@ public:
 		LastLocation {},
 		Intrinsic {},
 		Owner {},
-		LastFrameLocation {},
 		IsMoving { false }
 	{ }
 
 	bool Update(CoordStruct location);
+	bool SpawnAnim(std::vector<AnimTypeClass*> const& animTypes, CoordStruct behindPos, CoordStruct currentPos);
 
 	bool Load(PhobosStreamReader& stm, bool registerForChange);
 	bool Save(PhobosStreamWriter& stm) const;
 
 private:
-	bool DrawAnim(std::vector<AnimTypeClass*> const& animTypes, CoordStruct behindPos, CoordStruct currentPos);
-
 	template <typename T>
 	bool Serialize(T& stm);
 };
