@@ -33,49 +33,16 @@ void PR_BuildExpand()
 
 void PR_Calibrate()
 {
-	if (PR_Calibrated)
-		return;
-
-	do
-	{
-		auto tmp = DSurface::Temp;
-		if (!tmp || !PR_IsPlausiblePtr(tmp))
-		{
-			Debug::Log("PixelRender: no temp surface, assume 565\n");
-			break;
-		}
-
-		RectangleStruct rc { 0, 0, 4, 4 };
-		/* COLORREF 纯红（COLORREF 布局 = 0x00BBGGRR）。 */
-		tmp->DrawRect(&rc, 0x000000FFu);
-
-		auto px = (unsigned short*)tmp->Lock(0, 0);
-		if (!px)
-		{
-			Debug::Log("PixelRender: temp lock failed, assume 565\n");
-			break;
-		}
-
-		unsigned raw = *px;
-		tmp->Unlock();
-
-		if ((raw & 0xF800u) == 0xF800u)
-		{
-			PR_RBits = 5; PR_GBits = 6; PR_BBits = 5;
-		}
-		else if ((raw & 0x7C00u) == 0x7C00u)
-		{
-			PR_RBits = 5; PR_GBits = 5; PR_BBits = 5;
-		}
-		else
-		{
-			Debug::Log("PixelRender: unexpected probe pixel %04X, assume 565\n", raw);
-		}
-	} while (false);
-
+	/* RA2/YR 的 16bpp 面恒为 RGB565。原 GDI 探针在这里失效: YRpp
+	 * DSurface::DrawRect 不做颜色转换, 传入的 COLORREF 低 16 位被原样写进
+	 * 面里再原样读回, 往返永远探测不出 565/555 差异, 只会制造
+	 * "unexpected probe pixel" 噪音 —— 直接写死。 */
+	PR_RBits = 5;
+	PR_GBits = 6;
+	PR_BBits = 5;
 	PR_ExpReady = 0;
 	PR_BuildExpand();
 	PR_Calibrated = 1;
 
-	Debug::Log("PixelRender: %d%d%d\n", PR_RBits, PR_GBits, PR_BBits);
+	Debug::Log("PixelRender: 565 (hardcoded, RA2 is always 565)\n");
 }
