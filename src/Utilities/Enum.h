@@ -306,7 +306,8 @@ enum class LaserTrailDrawType : BYTE
 {
 	Laser = 0,
 	EBolt = 1,
-	RadBeam = 2
+	RadBeam = 2,
+	Anim = 3
 };
 
 enum class HorizontalPosition : BYTE

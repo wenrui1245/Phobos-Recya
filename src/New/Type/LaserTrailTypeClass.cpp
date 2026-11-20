@@ -47,6 +47,10 @@ void LaserTrailTypeClass::LoadFromINI(CCINIClass* pINI)
 	this->CloakVisible_DetectedOnly.Read(exINI, section, "CloakVisible.DetectedOnly");
 	this->DroppodOnly.Read(exINI, section, "DropPodOnly");
 	this->IsHideable.Read(exINI, section, "IsHideable");
+
+	this->Anim_Start.Read(exINI, section, "Anim.Start");
+	this->Anim_While.Read(exINI, section, "Anim.While");
+	this->Anim_Stop.Read(exINI, section, "Anim.Stop");
 }
 
 template <typename T>
@@ -72,6 +76,9 @@ void LaserTrailTypeClass::Serialize(T& Stm)
 		.Process(this->CloakVisible_DetectedOnly)
 		.Process(this->DroppodOnly)
 		.Process(this->IsHideable)
+		.Process(this->Anim_Start)
+		.Process(this->Anim_While)
+		.Process(this->Anim_Stop)
 		;
 }
 

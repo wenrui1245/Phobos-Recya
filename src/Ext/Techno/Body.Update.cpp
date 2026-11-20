@@ -570,6 +570,8 @@ void TechnoExt::UpdateLaserTrails()
 				continue;
 		}
 
+		// 尾焰所属方可能因俘获、心灵控制等改变，动画尾焰依赖它做所属色重映射
+		pTrail->Owner = pOwner;
 		pTrail->Cloaked = false;
 
 		if (cloakState == CloakState::Cloaked)

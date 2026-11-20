@@ -1,5 +1,10 @@
 ﻿#include "LaserTrailClass.h"
 
+#include <AnimClass.h>
+#include <ScenarioClass.h>
+#include <Dir.h>
+#include <YRMath.h>
+
 #include <Ext/EBolt/Body.h>
 
 // Draws LaserTrail if the conditions are suitable.
@@ -9,8 +14,30 @@ bool LaserTrailClass::Update(CoordStruct location)
 	if (Phobos::Config::HideLaserTrailEffects && this->Type->IsHideable)
 		return false;
 
+	auto const pType = this->Type;
 	bool result = false;
-	const double segmentLength = (double)this->Type->SegmentLength;
+
+	// 动画尾焰依靠帧间位移区分起步、行进与刹车三种状态
+	if (pType->DrawType == LaserTrailDrawType::Anim && this->LastFrameLocation.isset())
+	{
+		CoordStruct const lastFrame = this->LastFrameLocation.Get();
+		bool const inMotion = location.DistanceFromSquared(lastFrame) > 1.0;
+
+		if (this->Visible && !this->Cloaked)
+		{
+			if (inMotion && !this->IsMoving)
+				result |= this->DrawAnim(pType->Anim_Start, lastFrame, location);
+			else if (!inMotion && this->IsMoving)
+				result |= this->DrawAnim(pType->Anim_Stop, lastFrame, location);
+		}
+
+		this->IsMoving = inMotion;
+	}
+
+	if (pType->DrawType == LaserTrailDrawType::Anim)
+		this->LastFrameLocation = location;
+
+	const double segmentLength = (double)pType->SegmentLength;
 
 	if (!this->LastLocation.isset())
 	{
@@ -19,12 +46,14 @@ bool LaserTrailClass::Update(CoordStruct location)
 	}
 	else if (location.DistanceFromSquared(this->LastLocation.Get()) > static_cast<double>(segmentLength) * segmentLength) // TODO reimplement IgnoreVertical properly?
 	{
-		auto const pType = this->Type;
-
 		// We spawn new laser segment if the distance is long enough, the game will do the rest - Kerbiter
 		if (this->Visible && !this->Cloaked && (pType->IgnoreVertical ? (abs(location.X - this->LastLocation.Get().X) > 16 || abs(location.Y - this->LastLocation.Get().Y) > 16) : true))
 		{
-			if (pType->DrawType == LaserTrailDrawType::Laser)
+			if (pType->DrawType == LaserTrailDrawType::Anim)
+			{
+				this->DrawAnim(pType->Anim_While, this->LastLocation.Get(), location);
+			}
+			else if (pType->DrawType == LaserTrailDrawType::Laser)
 			{
 				const auto pLaser = GameCreate<LaserDrawClass>(
 					this->LastLocation.Get(), location,
@@ -83,6 +112,48 @@ bool LaserTrailClass::Update(CoordStruct location)
 	return result;
 }
 
+// 生成一段动画尾焰，返回是否成功创建动画。
+bool LaserTrailClass::DrawAnim(std::vector<AnimTypeClass*> const& animTypes, CoordStruct behindPos, CoordStruct currentPos)
+{
+	auto const count = animTypes.size();
+
+	if (count == 0)
+		return false;
+
+	size_t index = 0;
+
+	if (count > 1)
+	{
+		if (count % 8 == 0)
+		{
+			// 与 KratosPP 行为一致：帧数为 8 的倍数时按水平朝向选帧，每 8 帧为一组
+			DirStruct const dir { Math::atan2(static_cast<double>(currentPos.Y - behindPos.Y),
+				static_cast<double>(currentPos.X - behindPos.X)) };
+			index = (dir.GetFacing<8>() + count / 8) % count;
+		}
+		else
+		{
+			index = static_cast<size_t>(ScenarioClass::Instance->Random.RandomRanged(0, static_cast<int>(count) - 1));
+		}
+	}
+
+	AnimTypeClass* const pAnimType = animTypes[index];
+
+	if (!pAnimType)
+		return false;
+
+	AnimClass* const pAnim = GameCreate<AnimClass>(pAnimType, currentPos);
+
+	if (!pAnim)
+		return false;
+
+	// 动画归属尾焰所属方，保证所属色重映射与正常生成的动画一致
+	if (this->Owner)
+		pAnim->Owner = this->Owner;
+
+	return true;
+}
+
 #pragma region Save/Load
 
 template <typename T>
@@ -97,6 +168,7 @@ bool LaserTrailClass::Serialize(T& stm)
 		.Process(this->CurrentColor)
 		.Process(this->LastLocation)
 		.Process(this->Intrinsic)
+		.Process(this->Owner)
 		.Success();
 };
 

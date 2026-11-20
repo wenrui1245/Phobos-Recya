@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <AnimTypeClass.h>
+
 #include <Utilities/Enumerable.h>
 #include <Utilities/TemplateDef.h>
 
@@ -26,6 +28,11 @@ public:
 	Valueable<bool> DroppodOnly;
 	Valueable<bool> IsHideable;
 
+	// 动画尾焰（DrawType=Anim）：起步、行进、刹车三种状态下使用的动画列表
+	ValueableVector<AnimTypeClass*> Anim_Start;
+	ValueableVector<AnimTypeClass*> Anim_While;
+	ValueableVector<AnimTypeClass*> Anim_Stop;
+
 	LaserTrailTypeClass(const char* pTitle = NONE_STR) : Enumerable<LaserTrailTypeClass>(pTitle)
 		, DrawType { LaserTrailDrawType::Laser }
 		, IsHouseColor { false }
@@ -46,6 +53,9 @@ public:
 		, CloakVisible_DetectedOnly { false }
 		, DroppodOnly { false }
 		, IsHideable { true }
+		, Anim_Start {}
+		, Anim_While {}
+		, Anim_Stop {}
 	{ }
 
 	void LoadFromINI(CCINIClass* pINI);

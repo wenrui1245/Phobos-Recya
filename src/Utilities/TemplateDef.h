@@ -1348,6 +1348,10 @@ namespace detail
 			{
 				value = LaserTrailDrawType::RadBeam;
 			}
+			else if (_strcmpi(parser.value(), "anim") == 0)
+			{
+				value = LaserTrailDrawType::Anim;
+			}
 			else
 			{
 				Debug::INIParseFailed(pSection, pKey, parser.value(), "Expected a LaserTrail draw type");

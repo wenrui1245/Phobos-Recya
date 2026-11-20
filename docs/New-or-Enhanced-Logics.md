@@ -344,7 +344,7 @@ Similarly, unless you really have a need, `UseGlobalRadApplicationDelay` should 
 
 - Technos, Projectiles, and VoxelAnims can now have colorful trails of different transparency, thickness and color, which are drawn via laser drawing code.
 - Technos, Projectiles, and VoxelAnims can have multiple laser trails. For technos each trail can have custom laser trail type and FLH offset relative to turret and body.
-- LaserTrail can also be drawn as EBolt or RadBeam.
+- LaserTrail can also be drawn as EBolt, RadBeam or a chain of animations.
 
 In `artmd.ini`:
 ```ini
@@ -352,7 +352,7 @@ In `artmd.ini`:
 0=SOMETRAIL
 
 [SOMETRAIL]                      ; LaserTrailType
-DrawType=laser                   ; laser trail type (laser | ebolt | radbeam)
+DrawType=laser                   ; trail type (laser | ebolt | radbeam | anim)
 FadeDuration=                    ; integer, default to 64 for laser, 17 for ebolt, 15 for radbeam
 SegmentLength=128                ; integer, minimal length of each trail segment
 IgnoreVertical=false             ; boolean, whether the trail won't be drawn on vertical movement
@@ -376,6 +376,10 @@ Bolt.ZAdjust=0                   ; integer
 ; radbeam
 Beam.Color=                      ; integer - Red,Green,Blue
 Beam.Amplitude=40.0              ; floating point value
+; anim
+Anim.Start=                      ; List of AnimTypes, spawned once when the trail owner starts moving
+Anim.While=                      ; List of AnimTypes, spawned once per trail SegmentLength while moving
+Anim.Stop=                       ; List of AnimTypes, spawned once when the trail owner stops moving
 
 [SOMEPROJECTILE]                 ; Projectile Image
 LaserTrail.Types=SOMETRAIL       ; List of LaserTrailTypes
@@ -391,6 +395,10 @@ In `rulesmd.ini`:
 ```ini
 [SOMEVOXELANIM]                  ; VoxelAnim
 LaserTrail.Types=SOMETRAIL       ; List of LaserTrailTypes
+```
+
+```{note}
+With `DrawType=anim` the trail is drawn as a chain of animations instead of a laser line. `Anim.Start` and `Anim.Stop` are played once when the trail owner starts and stops moving, respectively, while entries from `Anim.While` are spawned every `SegmentLength` of travel. When an animation list contains 8 or a multiple of 8 entries, the entry is selected from the horizontal direction of the trail segment (same convention as KratosPP); otherwise a random entry is used.
 ```
 
 ```{warning}
