@@ -180,6 +180,12 @@ public:
 
 	bool AtEndOfBlock() const { return this->stream->Size() == this->stream->Offset(); }
 
+	bool HasRemainingData() const
+	{
+		return this->stream->Offset() < this->stream->Size();
+	}
+
+
 	bool ExpectEndOfBlock() const
 	{
 		if (!this->Success() || this->stream->Size() != this->stream->Offset())

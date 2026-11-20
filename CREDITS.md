@@ -814,8 +814,12 @@ This page lists all the individual contributions to the project by their author.
   - Fixed the issue where the AI-triggered reachability check incorrectly rejects reachable transport teams that are summarized as having `MovementZone` of `Amphibious`, `AmphibiousCrusher`, `AmphibiousDestroyer`, or `Fly`
   - Fix the issue where AI triggers also perform reachability checks on teams that only execute guard, wait, or auxiliary script actions
   - Control of AI base plan rebuilding
-  - Fix a bug where an error in Attacking Allies customization at the weapon level broke vanilla behavior that lets weapons with `Sonic` warheads get an attack cursor on parasitized friendly units
+  - Fix the bug where a larger `LaserZAdjust` incorrectly changes the coordinates of the drawing endpoints
+  - Fix incorrect multi-turret shot distribution when `BurstPerTurret=1`
+  - Fix the bug where slaves responded to cheer events while enslaved
   - Fix a bug where a refactor of the fix for building laser weapon parameter reading accidentally caused `LaserThickness` of `IsHouseColor` lasers to become ineffective
+  - Fix a bug where an error in Attacking Allies customization at the weapon level broke vanilla behavior that lets weapons with `Sonic` warheads get an attack cursor on parasitized friendly units
+  - Allow TerrainType to use `Foundation=Custom`
 - **Ollerus**:
   - Build limit group enhancement
   - Customizable rocker amplitude

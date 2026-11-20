@@ -1670,36 +1670,7 @@ void TechnoTypeExt::LoadFromINIFile(CCINIClass* const pINI)
 	this->AI_Power.Read(exINI, pSection, "AI.Power");
 	this->AI_Power_AffectedByEnhancers.Read(exINI, pSection, "AI.Power.AffectedByEnhancers");
 
-	// Ares 0.2
-	this->RadarJamRadius.Read(exINI, pSection, "RadarJamRadius");
-	this->Cloneable.Read(exINI, pSection, "Cloneable");
-	this->ClonedAt.Read(exINI, pSection, "ClonedAt");
-	this->ClonedAs.Read(exINI, pSection, "ClonedAs");
-
-	// Ares 0.6
-	this->Drain_Local.Read(exINI, pSection, "Drain.Local");
-	this->Drain_Amount.Read(exINI, pSection, "Drain.Amount");
-
-	// Ares 0.9
-	this->InhibitorRange.Read(exINI, pSection, "InhibitorRange");
-	this->DesignatorRange.Read(exINI, pSection, "DesignatorRange");
-
-	// Ares 0.A
-	this->GroupAs.Read(pINI, pSection, "GroupAs");
-	this->InitialPayload_Types.Read(exINI, pSection, "InitialPayload.Types");
-
-	// Ares 0.C
-	this->NoAmmoWeapon.Read(exINI, pSection, "NoAmmoWeapon");
-	this->NoAmmoAmount.Read(exINI, pSection, "NoAmmoAmount");
-
-	// Ares 2.0
-	this->Passengers_BySize.Read(exINI, pSection, "Passengers.BySize");
-	this->FakeOf.Read(exINI, pSection, "FakeOf");
-	this->Convert_Deploy.Read(exINI, pSection, "Convert.Deploy");
-
-	// Ares 3.0
-	this->Unsellable.Read(exINI, pSection, "Unsellable");
-	this->KeepAlive.Read(exINI, pSection, "KeepAlive");
+	this->Parasite_AllowWaterExit.Read(exINI, pSection, "Parasite.AllowWaterExit");
 
 	// Airstrike tint color
 	this->TintColorAirstrike = GeneralUtils::GetColorFromColorAdd(this->LaserTargetColor.Get(RulesClass::Instance->LaserTargetColor));
@@ -1857,8 +1828,6 @@ void TechnoTypeExt::LoadFromINIFile(CCINIClass* const pINI)
 
 	this->DropCrate.Read(exINI, pSection, "DropCrate");
 
-	// VoiceIFVRepair from Ares 0.2
-	this->VoiceIFVRepair.Read(exINI, pSection, "VoiceIFVRepair");
 	this->ParseVoiceWeaponAttacks(exINI, pSection, this->VoiceWeaponAttacks, this->VoiceEliteWeaponAttacks);
 
 	// Show Cameo（移植自上游 PR #2272）
@@ -1877,6 +1846,40 @@ void TechnoTypeExt::LoadFromINIFile(CCINIClass* const pINI)
 		this->ShowCameo_CustomShape.Read(exArtINI, pArtSection, "ShowCameo.CustomShape");
 	}
 	this->ShowCameo_CustomPCX.Read(&CCINIClass::INI_Art, pArtSection, "ShowCameo.CustomPCX");
+
+	// Ares 0.2
+	this->RadarJamRadius.Read(exINI, pSection, "RadarJamRadius");
+	this->VoiceIFVRepair.Read(exINI, pSection, "VoiceIFVRepair");
+
+	// Ares 0.6
+	this->Drain_Local.Read(exINI, pSection, "Drain.Local");
+	this->Drain_Amount.Read(exINI, pSection, "Drain.Amount");
+
+	// Ares 0.9
+	this->InhibitorRange.Read(exINI, pSection, "InhibitorRange");
+	this->DesignatorRange.Read(exINI, pSection, "DesignatorRange");
+
+	// Ares 0.A
+	this->GroupAs.Read(pINI, pSection, "GroupAs");
+	this->InitialPayload_Types.Read(exINI, pSection, "InitialPayload.Types");
+
+	// Ares 0.C
+	this->NoAmmoWeapon.Read(exINI, pSection, "NoAmmoWeapon");
+	this->NoAmmoAmount.Read(exINI, pSection, "NoAmmoAmount");
+
+	// Ares 2.0
+	this->Passengers_BySize.Read(exINI, pSection, "Passengers.BySize");
+	this->Convert_Deploy.Read(exINI, pSection, "Convert.Deploy");
+
+	// Ares 3.0
+	this->Unsellable.Read(exINI, pSection, "Unsellable");
+	this->KeepAlive.Read(exINI, pSection, "KeepAlive");
+
+	// Ares 克隆工厂相关（本分支 Hooks.Others.cpp 的克隆逻辑在用，上游已删但这里必须保留）
+	this->Cloneable.Read(exINI, pSection, "Cloneable");
+	this->ClonedAt.Read(exINI, pSection, "ClonedAt");
+	this->ClonedAs.Read(exINI, pSection, "ClonedAs");
+	this->FakeOf.Read(exINI, pSection, "FakeOf");
 }
 
 template <typename T>
@@ -2389,7 +2392,6 @@ void TechnoTypeExt::Serialize(T& Stm)
 		.Process(this->ThreatTypes)
 		.Process(this->CombatDamages)
 
-		.Process(this->VoiceIFVRepair)
 		.Process(this->VoiceWeaponAttacks)
 		.Process(this->VoiceEliteWeaponAttacks)
 
@@ -2456,9 +2458,11 @@ void TechnoTypeExt::Serialize(T& Stm)
 		.Process(this->NoAmmoWeapons_IgnoreNeverUse)
 		.Process(this->AI_Power)
 		.Process(this->AI_Power_AffectedByEnhancers)
+		.Process(this->Parasite_AllowWaterExit)
 
 		// Ares 0.2
 		.Process(this->RadarJamRadius)
+		.Process(this->VoiceIFVRepair)
 
 		// Ares 0.6
 		.Process(this->Drain_Local)
