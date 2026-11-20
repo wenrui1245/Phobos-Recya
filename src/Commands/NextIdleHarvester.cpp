@@ -66,7 +66,7 @@ void NextIdleHarvesterCommandClass::Execute(WWKey eInput) const
 	}
 	else
 	{
-		MessageListClass::Instance.PrintMessage(GeneralUtils::LoadStringUnlessMissing("MSG:NothingSelectedOreMiner", StringTable::LoadString("MSG:NothingSelected"))), RulesClass::Instance->MessageDelay, HouseClass::CurrentPlayer->ColorSchemeIndex, true);
+		MessageListClass::Instance.PrintMessage(GeneralUtils::LoadStringUnlessMissing("MSG:NothingSelectedOreMiner", StringTable::LoadString("MSG:NothingSelected")), RulesClass::Instance->MessageDelay, HouseClass::CurrentPlayer->ColorSchemeIndex, true);
 		VocClass::PlayGlobal(RulesClass::Instance->SystemError, 0x2000, 1.0f);
 	}
 }
