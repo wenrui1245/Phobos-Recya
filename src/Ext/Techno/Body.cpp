@@ -49,14 +49,6 @@ TechnoExt::~TechnoExt()
 			invalidateCellPointer(pCell, false);
 	}
 
-	if (const auto pSquad = this->SquadManager)
-	{
-		pSquad->RemoveMember(pThis);
-
-		if (pSquad->Members.empty())
-			SquadManagerClass::Remove(pSquad);
-	}
-
 	if (!this->ChildAttachments.empty())
 	{
 		auto attachments = std::move(this->ChildAttachments);
@@ -1988,7 +1980,6 @@ void TechnoExt::Serialize(T& Stm)
 		.Process(this->IsWreckage)
 		.Process(this->JumpjetFromAirport)
 		.Process(this->BuildingOccupying)
-		.Process(this->SquadManager)
 		.Process(this->ParentAttachment)
 		.Process(this->ChildAttachments)
 		.Process(this->ThisOccupationCell)

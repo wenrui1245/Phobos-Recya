@@ -332,7 +332,6 @@ using PhobosTypeRegistry = TypeRegistry <
 	SelectBoxTypeClass,
 	AttachmentClass,
 	AttachmentTypeClass,
-	SquadManagerClass,
 	InsigniaTypeClass
 	// other classes
 > ;

@@ -10,7 +10,6 @@
 #include <New/Entity/LaserTrailClass.h>
 #include <New/Entity/AttachEffectClass.h>
 #include <New/Entity/AttachmentClass.h>
-#include <New/Entity/SquadManagerClass.h>
 #include <New/Entity/ShiftSchedule.h>
 
 class AirstrikeClass;
@@ -102,7 +101,6 @@ public:
 
 	AirstrikeClass* AirstrikeTargetingMe;
 
-	SquadManagerClass* SquadManager;
 
 	AttachmentClass* ParentAttachment;
 	std::vector<std::unique_ptr<AttachmentClass>> ChildAttachments;
@@ -221,7 +219,6 @@ public:
 		, JumpjetFromAirport { false }
 		, BuildingOccupying { }
 		, AirstrikeTargetingMe { nullptr }
-		, SquadManager { nullptr }
 		, ParentAttachment { nullptr }
 		, ChildAttachments {}
 		, ThisOccupationCell { nullptr }
