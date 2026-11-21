@@ -1,3 +1,4 @@
+#include <Ext/Unit/Footprint.h>
 #include <AircraftTrackerClass.h>
 #include <Interop/AircraftMission.h>
 #include <EventClass.h>
@@ -2337,14 +2338,95 @@ DEFINE_HOOK(0x489416, MapClass_DamageArea_AirDamageSelfFix, 0x6)
 // located on or under the bridge that are in the same position as the damage center point
 namespace DamageAreaTemp
 {
+	bool AircraftTrackerChecked = false;
 	const CellClass* CheckingCell = nullptr;
 	bool CheckingCellAlt = false;
-	bool AircraftTrackerChecked = false;
+	int BaseDamage = 0;
+	std::unordered_set<UnitClass*> FootprintOwners;
+	std::unordered_set<UnitClass*> FullFootprintApplied;
+
+	bool TryApplyFullFootprintDamage(UnitClass* pUnit, REGISTERS* R)
+	{
+		if (!pUnit)
+			return false;
+
+		const auto& config = Footprint::GetConfig(pUnit->GetTechnoType());
+
+		if (!config.HitAllCells)
+			return false;
+
+		// Retired: this used to call ReceiveDamage() once per hull cell with
+		// the unmodified base damage, i.e. a 36x9 carrier took 324 hits from a
+		// single missile. The normal path below already resolves peripheral
+		// hull cells to the footprint owner (see DamageItemsFix1), so one
+		// warhead damages the ship once unless PerCellDamage asks for per-cell
+		// resolution.
+		return false;
+
+		if (!FullFootprintApplied.insert(pUnit).second)
+			return true;
+
+		if (!pUnit->IsAlive || pUnit->InLimbo)
+			return true;
+
+		const auto pState = Footprint::GetState(pUnit);
+
+		if (!pState || !pState->Initialized || pState->Span.empty())
+			return true;
+
+		const auto pWH = *reinterpret_cast<WarheadTypeClass**>(R->EBP() + 0xC);
+		const auto pSource = *reinterpret_cast<TechnoClass**>(R->EBP() + 0x8);
+		const auto pSourceHouse = *reinterpret_cast<HouseClass**>(R->EBP() + 0x14);
+		const auto pCoords = reinterpret_cast<CoordStruct*>(R->EDI());
+
+		if (!pWH || !pCoords || BaseDamage == 0)
+			return true;
+
+		const int baseDamage = BaseDamage;
+
+		Debug::CarrierLog("[FullFootprint] owner=%s cells=%d baseDamage=%d wh=%s\n",
+			pUnit->Type->ID, static_cast<int>(pState->Span.size()),
+			baseDamage, pWH->ID);
+
+		for (const auto& cell : pState->Span)
+		{
+			const auto pCell = MapClass::Instance.TryGetCellAt(cell);
+
+			if (!pCell)
+				continue;
+
+			const auto center = pState->Alt
+				? pCell->GetCoordsWithBridge()
+				: pCell->GetCoords();
+			const int distance = static_cast<int>(center.DistanceFrom(*pCoords));
+			int damage = baseDamage;
+
+			pUnit->ReceiveDamage(&damage, distance, pWH, pSource, false, false, pSourceHouse);
+
+			if (!pUnit->IsAlive || pUnit->InLimbo)
+				break;
+		}
+
+		return true;
+	}
+}
+
+// A damage pass visits every hull cell of a multi-cell unit. Keep one entry per
+// hull per pass so the owner receives the warhead exactly once.
+// Preserve the original DamageArea damage before it is transformed for the
+// cell loop. The two original stores at this address are 4 + 4 bytes long.
+DEFINE_HOOK(0x48929B, DamageArea_CaptureBaseDamage, 0x8)
+{
+	DamageAreaTemp::BaseDamage = static_cast<int>(R->ESI());
+	return 0;
 }
 
 DEFINE_HOOK(0x489286, MapClass_DamageArea_BeforeAll, 0x6)
 {
 	DamageAreaTemp::AircraftTrackerChecked = false;
+	DamageAreaTemp::FootprintOwners.clear();
+	DamageAreaTemp::FullFootprintApplied.clear();
+	DamageAreaTemp::BaseDamage = 0;
 	return 0;
 }
 
@@ -2365,23 +2447,169 @@ DEFINE_HOOK(0x4896BF, DamageArea_DamageItemsFix1, 0x6)
 	GET(const CellClass* const, pCell, EBX);
 
 	DamageAreaTemp::CheckingCell = pCell;
+
+	auto const pSource = *reinterpret_cast<TechnoClass**>(R->EBP() + 0x8);
+	auto const pSourceTarget = pSource ? pSource->Target : nullptr;
+
+	// A carrier payload parked on a deck is a real object at the deck Z, but
+	// ground weapons detonate at the cell's terrain level. Only redirect the
+	// damage when the attacker's current target is actually that payload;
+	// attacks aimed at the carrier must keep hitting the carrier.
+	if (pSourceTarget)
+	{
+		for (int pass = 0; pass < 2; ++pass)
+		{
+			ObjectClass* pCandidate = pass == 0 ? pCell->FirstObject : pCell->AltObject;
+
+			for (; pCandidate; pCandidate = pCandidate->NextObject)
+			{
+				auto const pAircraft = abstract_cast<AircraftClass*>(pCandidate);
+
+				if (!pAircraft || pAircraft != pSourceTarget
+					|| !Footprint::IsCarrierPayloadParked(pAircraft))
+				{
+					continue;
+				}
+
+				DamageAreaTemp::CheckingCellAlt = pass != 0;
+				R->ESI(pAircraft);
+				return CheckThisObject;
+			}
+		}
+
+		// The deck pin uses SetLocation, so the cell object list is not always
+		// updated. Find the intended payload by its Location cell too.
+		for (int i = 0; i < AircraftClass::Array.Count; ++i)
+		{
+			auto const pAircraft = AircraftClass::Array.GetItem(i);
+
+			if (!pAircraft || pAircraft != pSourceTarget || !pAircraft->IsAlive
+				|| !Footprint::IsCarrierPayloadParked(pAircraft))
+			{
+				continue;
+			}
+
+			if (CellClass::Coord2Cell(pAircraft->Location) != pCell->MapCoords)
+				continue;
+
+			DamageAreaTemp::CheckingCellAlt = false;
+			R->ESI(pAircraft);
+			return CheckThisObject;
+		}
+	}
+
 	auto pObject = pCell->FirstObject;
+
+	auto const tryFullFootprint = [&](ObjectClass* pCandidate) -> bool
+	{
+		if (const auto pUnit = abstract_cast<UnitClass*>(pCandidate))
+			return DamageAreaTemp::TryApplyFullFootprintDamage(pUnit, R);
+
+		return false;
+	};
 
 	if (pObject)
 	{
+		if (tryFullFootprint(pObject))
+			return CheckNextCell;
+
 		R->ESI(pObject);
 		return CheckThisObject;
 	}
 
 	pObject = pCell->AltObject;
 
-	if (!pObject)
-		return CheckNextCell;
+	if (pObject)
+	{
+		if (tryFullFootprint(pObject))
+			return CheckNextCell;
 
-	DamageAreaTemp::CheckingCellAlt = true;
+		DamageAreaTemp::CheckingCellAlt = true;
+		R->ESI(pObject);
+		return CheckThisObject;
+	}
 
-	R->ESI(pObject);
-	return CheckThisObject;
+	// A multi-cell hull keeps only its anchor object in the cell list. When the
+	// damage pass reaches one of its other hull cells, feed the footprint owner
+	// through the normal DistanceArea path. This is a read-only lookup; nothing
+	// is inserted into FirstObject/AltObject.
+	pObject = Footprint::OwnerAt(pCell, false);
+
+	if (pObject)
+	{
+		if (tryFullFootprint(pObject))
+			return CheckNextCell;
+
+		auto const pUnit = static_cast<UnitClass*>(pObject);
+		const bool perCellDamage = Footprint::GetConfig(pUnit->GetTechnoType()).PerCellDamage;
+
+		if (!perCellDamage && !DamageAreaTemp::FootprintOwners.insert(pUnit).second)
+			return CheckNextCell;
+
+		DamageAreaTemp::CheckingCellAlt = false;
+		R->ESI(pObject);
+
+		Debug::CarrierLog("[FootprintDamage] cell=(%d,%d) owner=%s\n",
+			pCell->MapCoords.X, pCell->MapCoords.Y,
+			pUnit->Type->ID);
+
+		return CheckThisObject;
+	}
+
+	pObject = Footprint::OwnerAt(pCell, true);
+
+	if (pObject)
+	{
+		if (tryFullFootprint(pObject))
+			return CheckNextCell;
+
+		auto const pUnit = static_cast<UnitClass*>(pObject);
+		const bool perCellDamage = Footprint::GetConfig(pUnit->GetTechnoType()).PerCellDamage;
+
+		if (!perCellDamage && !DamageAreaTemp::FootprintOwners.insert(pUnit).second)
+			return CheckNextCell;
+
+		DamageAreaTemp::CheckingCellAlt = true;
+		R->ESI(pObject);
+
+		Debug::CarrierLog("[FootprintDamage] cell=(%d,%d) owner=%s (alt)\n",
+			pCell->MapCoords.X, pCell->MapCoords.Y,
+			pUnit->Type->ID);
+
+		return CheckThisObject;
+	}
+
+	return CheckNextCell;
+}
+
+// The original conversion at 0x489922 (call 0x7C5F00) still has a double on
+// the x87 stack. Calling DistanceFrom there corrupts the FPU stack and later
+// crashes inside Detonate. Hook after the conversion/store instead and write
+// the corrected distance into the candidate entry at [EBX+4].
+DEFINE_HOOK(0x48992A, DamageArea_FootprintCellDistance, 0x6)
+{
+	auto const pObject = reinterpret_cast<TechnoClass*>(R->ESI());
+	auto const pCell = DamageAreaTemp::CheckingCell;
+
+	if (pObject && pObject->WhatAmI() == AbstractType::Aircraft
+		&& Footprint::IsCarrierPayloadParked(pObject))
+	{
+		// The payload is at the deck Z while the damage point is the cell
+		// floor; force full damage instead of a vertical-distance falloff.
+		*reinterpret_cast<int*>(R->EBX() + 4) = 0;
+		return 0;
+	}
+
+	if (pObject && pCell && Footprint::IsMultiCell(pObject)
+		&& Footprint::OwnerAt(pCell, DamageAreaTemp::CheckingCellAlt) == pObject)
+	{
+		const auto cellCenter = pCell->GetCoordsWithBridge();
+		const auto coords = reinterpret_cast<CoordStruct*>(R->EDI());
+		*reinterpret_cast<int*>(R->EBX() + 4) =
+			static_cast<int>(cellCenter.DistanceFrom(*coords));
+	}
+
+	return 0;
 }
 
 DEFINE_HOOK(0x4899B3, DamageArea_DamageItemsFix2, 0x5)

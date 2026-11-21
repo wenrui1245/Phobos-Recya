@@ -292,6 +292,13 @@
     <ClCompile Include="src\Interop\UIExt\UIExtApi.cpp" />
     <!-- src\Locomotion -->
     <ClCompile Include="src\Locomotion\AdvancedDriveLocomotionClass.cpp" />
+    <ClCompile Include="src\Ext\Unit\Footprint.cpp" />
+    <ClCompile Include="src\Ext\Unit\Hooks.Footprint.cpp" />
+    <ClCompile Include="src\Ext\Unit\FootprintDebug.cpp" />
+    <ClCompile Include="src\Locomotion\FootprintLocomotionClass.cpp" />
+    <ClCompile Include="src\Misc\FootprintPathfinder.cpp" />
+    <ClCompile Include="src\Commands\RecallCarrierAircraft.cpp" />
+    <ClCompile Include="src\Commands\DumpCarrierState.cpp" />
     <ClCompile Include="src\Locomotion\AStar\AStarClass.cpp" />
     <ClCompile Include="src\Locomotion\AttachmentLocomotionClass.cpp" />
     <ClCompile Include="src\Locomotion\ShiftLocomotionClass.cpp" />
@@ -534,6 +541,12 @@
     <ClInclude Include="src\Interop\UIExt\UIExtApi.h" />
     <!-- src\Locomotion -->
     <ClInclude Include="src\Locomotion\AdvancedDriveLocomotionClass.h" />
+    <ClInclude Include="src\Ext\Unit\Footprint.h" />
+    <ClInclude Include="src\Ext\Unit\FootprintDebug.h" />
+    <ClInclude Include="src\Locomotion\FootprintLocomotionClass.h" />
+    <ClInclude Include="src\Misc\FootprintPathfinder.h" />
+    <ClInclude Include="src\Commands\RecallCarrierAircraft.h" />
+    <ClInclude Include="src\Commands\DumpCarrierState.h" />
     <ClInclude Include="src\Locomotion\AStar\AStarClass.h" />
     <ClInclude Include="src\Locomotion\AttachmentLocomotionClass.h" />
     <ClInclude Include="src\Locomotion\ShiftLocomotionClass.h" />

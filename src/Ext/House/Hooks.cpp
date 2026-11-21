@@ -535,7 +535,7 @@ DEFINE_HOOK(0x50B669, HouseClass_ShouldDisableCameo_GreyCameo, 0x5)
 		return 0;
 
 	if (CheckShouldDisableDefensesCameo(pThis, pType)
-		|| HouseExt::ReachedBuildLimit(pThis, pType, false)
+		|| HouseExt::ReachedBuildLimit(pThis, pType, false, false)
 		|| CheckShowGreyCameo(pThis, pType, *R->ESP<int*>()))
 	{
 		R->EAX(true);

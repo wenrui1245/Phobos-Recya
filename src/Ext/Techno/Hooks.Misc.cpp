@@ -853,6 +853,7 @@ DEFINE_HOOK(0x73C725, UnitClass_DrawSHP_HasTurret, 0x6)
 	enum { SkipDrawTurret = 0x73CE0D };
 
 	GET(UnitClass*, pThis, EBP);
+	Footprint::CaptureCarrierIslandFrame(pThis, R->EBX());
 
 	if (pThis->IsDisguised() && !pThis->IsClearlyVisibleTo(HouseClass::CurrentPlayer))
 	{

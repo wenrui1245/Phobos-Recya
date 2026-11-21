@@ -9,6 +9,8 @@
 
 #include <EventClass.h>
 #include <IsometricTileTypeClass.h>
+#include <MouseClass.h>
+#include <Unsorted.h>
 
 /*
 	In sub_740810
@@ -1242,46 +1244,38 @@ DEFINE_HOOK(0x4A937D, DisplayClass_CallBuildingPlaceCheck_ReplaceBuildingType, 0
 	if (pTypeExt && pTypeExt->PlaceBuilding_Extra)
 	{
 		if (!ScrollClass::Instance.IsMouseDown)
+		{
 			updateCurrentFoundation();
-		else // bp
+		}
+		else
+		{
 			R->EBP(pDisplay->CurrentFoundation_CenterCell.X);
 
-		// 形态切换只响应左键：右键按下期间不更新方向、不切换变体
-		if (!Phobos::Misc::RightMouseDown)
-		{
+			// ScrollClass sets IsMouseDown for either button. The high bit
+			// reports whether the button is still held.
+			const bool swapped = Imports::GetSystemMetrics(SM_SWAPBUTTON) != 0;
+			const int leftButton = swapped ? VK_RBUTTON : VK_LBUTTON;
+			const int rightButton = swapped ? VK_LBUTTON : VK_RBUTTON;
+			if (!(Imports::GetAsyncKeyState(leftButton) & 0x8000)
+				|| (Imports::GetAsyncKeyState(rightButton) & 0x8000))
+			{
+				return SkipGameCode;
+			}
+
 			const auto delta = cell - pDisplay->CurrentFoundation_CenterCell;
-
-			if (delta.Y || delta.X)
+			if (delta.X || delta.Y)
 				Phobos::Config::CurrentPlacingDirection = DirStruct(Math::atan2(-delta.Y, delta.X)).GetFacing<32>();
+		}
 
-			auto getAnotherPlacingType = [pDisplay, pTypeExt]() -> BuildingTypeClass*
-			{
-				if (pTypeExt)
-				{
-					const auto pCenterCell = MapClass::Instance.GetCellAt(pDisplay->CurrentFoundation_CenterCell);
-					const bool onWater = pCenterCell->LandType == LandType::Water;
-					return pTypeExt->GetAnotherPlacingType(Phobos::Config::CurrentPlacingDirection, onWater);
-				}
+		const auto pCenterCell = MapClass::Instance.GetCellAt(pDisplay->CurrentFoundation_CenterCell);
+		const bool onWater = pCenterCell->LandType == LandType::Water;
+		const auto pAnotherType = pTypeExt->GetAnotherPlacingType(Phobos::Config::CurrentPlacingDirection, onWater);
+		const auto pPreviewType = pAnotherType ? pAnotherType : pCurrentBuilding->Type;
 
-				return nullptr;
-			};
-
-			if (const auto pAnotherType = getAnotherPlacingType())
-			{
-				if (pDisplay->CurrentBuildingType && pDisplay->CurrentBuildingType != pAnotherType)
-				{
-					pDisplay->CurrentBuildingType = pAnotherType;
-					pDisplay->SetActiveFoundation(pAnotherType->GetFoundationData(true));
-				}
-			}
-			else if (pCurrentBuilding)
-			{
-				if (pDisplay->CurrentBuildingType && pDisplay->CurrentBuildingType != pCurrentBuilding->Type)
-				{
-					pDisplay->CurrentBuildingType = pCurrentBuilding->Type;
-					pDisplay->SetActiveFoundation(pCurrentBuilding->Type->GetFoundationData(true));
-				}
-			}
+		if (pDisplay->CurrentBuildingType && pDisplay->CurrentBuildingType != pPreviewType)
+		{
+			pDisplay->CurrentBuildingType = pPreviewType;
+			pDisplay->SetActiveFoundation(pPreviewType->GetFoundationData(true));
 		}
 	}
 	else

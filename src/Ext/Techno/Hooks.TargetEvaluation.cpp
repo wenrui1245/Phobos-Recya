@@ -1,4 +1,5 @@
-﻿#include "Body.h"
+﻿#include <Ext/Unit/Footprint.h>
+#include "Body.h"
 
 #include <Interop/TechnoExt.h>
 #include <Ext/BuildingType/Body.h>
@@ -6,6 +7,78 @@
 // Cursor & target acquisition stuff not directly tied to other features can go here.
 
 #pragma region TargetAcquisition
+
+// A carrier payload parked on the deck is a normal AircraftClass, but it must
+// behave like a ground target for weapons and cursor actions. ObjectClass::
+// IsInAir is already overridden for this case; these helpers cover the
+// weapon/cursor layers that also test the target's abstract type.
+static bool IsParkedCarrierPayloadTarget(ObjectClass* pObj)
+{
+	if (!pObj || pObj->WhatAmI() != AbstractType::Aircraft)
+		return false;
+
+	return Footprint::IsCarrierPayloadParked(static_cast<TechnoClass*>(pObj));
+}
+
+static bool IsHostileParkedCarrierPayloadTarget(TechnoClass* pThis, ObjectClass* pObj)
+{
+	if (!pThis || !pThis->Owner || !IsParkedCarrierPayloadTarget(pObj))
+		return false;
+
+	auto const pTarget = static_cast<TechnoClass*>(pObj);
+	return pTarget->Owner && !pThis->Owner->IsAlliedWith(pTarget->Owner);
+}
+
+static bool CanForceParkedCarrierPayloadTarget(TechnoClass* pThis, ObjectClass* pObj)
+{
+	if (!pThis || !pObj || !IsParkedCarrierPayloadTarget(pObj))
+		return false;
+
+	// Only a player-issued attack order against this exact parked aircraft may
+	// bypass the engine's weapon/target checks. Forcing the error to OK for
+	// every hostile parked payload made AI and auto-acquired units retry a
+	// forbidden shot every frame, which drained the Ammo pool of any unit that
+	// uses one (on both sides).
+	if (!pThis->Owner || !HouseClass::CurrentPlayer
+		|| pThis->Owner != HouseClass::CurrentPlayer)
+	{
+		return false;
+	}
+
+	// Normal click and Ctrl force-attack are recorded at click time. This is the
+	// only path that may bypass the engine checks; AI and auto-acquired targets
+	// are never recorded.
+	return Footprint::IsForcedParkedPayloadTarget(pThis, pObj);
+}
+
+// The engine's target-type check runs before its ammo, range and rate-of-fire
+// gates. Replacing ILLEGAL/CANT with OK therefore bypassed all of them, and
+// keeping ILLEGAL when the shot was not ready made the attack mission drop its
+// target. Translate the result into the real blocking reason instead.
+static FireError ResolveParkedTargetFireError(TechnoClass* pThis, ObjectClass* pObj,
+	int nWeaponIndex, bool ignoreRange, FireError result)
+{
+	if (result != FireError::ILLEGAL && result != FireError::CANT)
+		return result;
+
+	if (!CanForceParkedCarrierPayloadTarget(pThis, pObj))
+		return result;
+
+	// Preserve the native backup weapon when the primary runs out of ammo.
+	if (pThis->GetTechnoType()->Ammo >= 0 && pThis->Ammo <= 0
+		&& !TechnoExt::CanFireNoAmmoWeapon(pThis, nWeaponIndex))
+	{
+		return FireError::AMMO;
+	}
+
+	if (!ignoreRange && !pThis->IsCloseEnough(pObj, nWeaponIndex))
+		return FireError::RANGE;
+
+	if (pThis->RearmTimer.InProgress())
+		return FireError::REARM;
+
+	return FireError::OK;
+}
 
 DEFINE_HOOK(0x7098B9, TechnoClass_TargetSomethingNearby_AutoFire, 0x6)
 {
@@ -355,7 +428,7 @@ static FireError __fastcall UnitClass__GetFireError_Wrapper(UnitClass* pThis, vo
 	AresScheme::Prefix(pThis, pObj, nWeaponIndex, false);
 	auto const result = pThis->UnitClass::GetFireError(pObj, nWeaponIndex, ignoreRange);
 	AresScheme::Suffix();
-	return result;
+	return ResolveParkedTargetFireError(pThis, pObj, nWeaponIndex, ignoreRange, result);
 }
 DEFINE_FUNCTION_JUMP(VTABLE, 0x7F6030, UnitClass__GetFireError_Wrapper)
 
@@ -364,7 +437,7 @@ static FireError __fastcall InfantryClass__GetFireError_Wrapper(InfantryClass* p
 	AresScheme::Prefix(pThis, pObj, nWeaponIndex, false);
 	auto const result = pThis->InfantryClass::GetFireError(pObj, nWeaponIndex, ignoreRange);
 	AresScheme::Suffix();
-	return result;
+	return ResolveParkedTargetFireError(pThis, pObj, nWeaponIndex, ignoreRange, result);
 }
 DEFINE_FUNCTION_JUMP(VTABLE, 0x7EB418, InfantryClass__GetFireError_Wrapper)
 
@@ -373,6 +446,17 @@ static Action __fastcall UnitClass__WhatAction_Wrapper(UnitClass* pThis, void* _
 	AresScheme::Prefix(pThis, pObj, -1, false);
 	auto result = pThis->UnitClass::MouseOverObject(pObj, ignoreForce);
 	AresScheme::Suffix();
+
+	// Parked carrier aircraft are ground targets; show the Attack cursor for
+	// ground units even though the target's abstract type is Aircraft.
+	if (IsParkedCarrierPayloadTarget(pObj)
+		&& (GetAsyncKeyState(VK_CONTROL) & 0x8000))
+	{
+		return Action::Attack;
+	}
+
+	if (IsHostileParkedCarrierPayloadTarget(pThis, pObj))
+		return Action::Attack;
 
 	auto const pExt = TechnoExt::Fetch(pThis);
 	if (!pExt->ParentAttachment)
@@ -412,9 +496,34 @@ static Action __fastcall InfantryClass__WhatAction_Wrapper(InfantryClass* pThis,
 	auto const result = pThis->InfantryClass::MouseOverObject(pObj, ignoreForce);
 	AresScheme::Suffix();
 
+	// Parked carrier aircraft are ground targets; show the Attack cursor for
+	// infantry even though the target's abstract type is Aircraft.
+	if (IsParkedCarrierPayloadTarget(pObj)
+		&& (GetAsyncKeyState(VK_CONTROL) & 0x8000))
+	{
+		return Action::Attack;
+	}
+
+	if (IsHostileParkedCarrierPayloadTarget(pThis, pObj))
+		return Action::Attack;
+
 	return result;
 }
 DEFINE_FUNCTION_JUMP(VTABLE, 0x7EB0CC, InfantryClass__WhatAction_Wrapper)
+
+static Action __fastcall AircraftClass_MouseOverObject_Carrier(AircraftClass* pThis, void*, ObjectClass* pTarget, bool ignoreForce)
+{
+	if (auto const pCarrier = Footprint::GetCarrierPayloadOwner(pThis))
+	{
+		if (!Footprint::IsCarrierPayloadParked(pThis)
+			&& (pTarget == pCarrier || (!pTarget && pThis->IsSelected && Footprint::IsMouseOverCarrierHullCell(pCarrier))))
+			return Action::Enter;
+	}
+
+	using MouseOver = Action(__thiscall*)(AircraftClass*, ObjectClass*, bool);
+	return reinterpret_cast<MouseOver>(0x417CC0)(pThis, pTarget, ignoreForce);
+}
+DEFINE_FUNCTION_JUMP(VTABLE, 0x7E2318, AircraftClass_MouseOverObject_Carrier)
 
 #pragma region CeaseFireStance
 

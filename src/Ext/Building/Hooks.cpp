@@ -1,6 +1,7 @@
 ﻿#include "Body.h"
 
 #include <GameOptionsClass.h>
+#include <EventClass.h>
 #include <Ext/Anim/Body.h>
 #include <Ext/House/Body.h>
 #include <Ext/SWType/Body.h>
@@ -821,27 +822,209 @@ static bool AllowGreyCameoQueue()
 	return RulesExt::Global()->Cameo_AlwaysExistAllowQueue;
 }
 
-static bool IsBlockedByBuildLimit(HouseClass* const pHouse, const TechnoTypeClass* const pType)
+static FactoryClass* GetPrimaryFactoryForLimit(const HouseClass* pHouse, const TechnoTypeClass* pType)
 {
-	// Mix BuildLimitGroup - the same check the sidebar greying uses.
-	if (HouseExt::ReachedBuildLimit(pHouse, pType, false))
+	const auto buildCat = pType->WhatAmI() == AbstractType::BuildingType
+		? static_cast<const BuildingTypeClass*>(pType)->BuildCat
+		: BuildCat::DontCare;
+
+	return pHouse->GetPrimaryFactory(pType->WhatAmI(), pType->Naval, buildCat);
+}
+
+static bool FactoryInArray(const FactoryClass* pFactory)
+{
+	for (const auto pItem : FactoryClass::Array)
+	{
+		if (pItem == pFactory)
+			return true;
+	}
+
+	return false;
+}
+
+static int CountQueuedForLimit(const HouseClass* pHouse, const TechnoTypeClass* pType, const FactoryClass* pExtraFactory = nullptr)
+{
+	int count = 0;
+
+	auto addFactory = [&](const FactoryClass* pFactory)
+	{
+		if (!pFactory || pFactory->Owner != pHouse)
+			return;
+
+		count += pFactory->CountTotal(pType);
+
+		if (pFactory->Object && pFactory->Object->GetType() == pType)
+			--count; // the current product is counted separately below
+	};
+
+	for (const auto pFactory : FactoryClass::Array)
+		addFactory(pFactory);
+
+	const auto pPrimary = GetPrimaryFactoryForLimit(pHouse, pType);
+
+	if (pPrimary && !FactoryInArray(pPrimary))
+		addFactory(pPrimary);
+
+	if (pExtraFactory && !FactoryInArray(pExtraFactory) && pExtraFactory != pPrimary)
+		addFactory(pExtraFactory);
+
+	return std::max(0, count);
+}
+
+static int CountCurrentForLimit(const HouseClass* pHouse, const TechnoTypeClass* pType, const FactoryClass* pExtraFactory = nullptr)
+{
+	int count = 0;
+
+	auto addFactory = [&](const FactoryClass* pFactory)
+	{
+		if (pFactory && pFactory->Owner == pHouse && pFactory->Object
+			&& pFactory->Object->GetType() == pType)
+		{
+			++count;
+		}
+	};
+
+	for (const auto pFactory : FactoryClass::Array)
+		addFactory(pFactory);
+
+	const auto pPrimary = GetPrimaryFactoryForLimit(pHouse, pType);
+
+	if (pPrimary && !FactoryInArray(pPrimary))
+		addFactory(pPrimary);
+
+	if (pExtraFactory && !FactoryInArray(pExtraFactory) && pExtraFactory != pPrimary)
+		addFactory(pExtraFactory);
+
+	return count;
+}
+
+static int CountOwnedForBuildLimitGroup(const HouseClass* pHouse, const TechnoTypeClass* pType)
+{
+	if (const auto pBuildingType = abstract_cast<const BuildingTypeClass*, true>(pType))
+	{
+		if (BuildingTypeExt::Fetch(pBuildingType)->PowersUp_Buildings.size() > 0)
+			return BuildingTypeExt::GetUpgradesAmount(pBuildingType, pHouse);
+	}
+
+	int count = pHouse->CountOwnedNow(pType);
+
+	if (pType->DeploysInto)
+		count += pHouse->CountOwnedNow(pType->DeploysInto);
+
+	if (pType->UndeploysInto)
+		count += pHouse->CountOwnedNow(pType->UndeploysInto);
+
+	if (const auto pJumpjet = TechnoTypeExt::Fetch(pType)->ThisIsAJumpjet)
+		count += pHouse->CountOwnedNow(pJumpjet);
+
+	return count;
+}
+
+static int CountQueuedAndCurrentForBuildLimitGroup(const HouseClass* pHouse, const TechnoTypeClass* pType, const FactoryClass* pExtraFactory = nullptr)
+{
+	return CountQueuedForLimit(pHouse, pType, pExtraFactory) + CountCurrentForLimit(pHouse, pType, pExtraFactory);
+}
+
+static bool IsBuildLimitGroupBlockedForQueue(const HouseClass* pHouse, const TechnoTypeClass* pItem, const FactoryClass* pExtraFactory = nullptr, int additionalQueued = 0)
+{
+	const auto pItemExt = TechnoTypeExt::Fetch(pItem);
+
+	if (pItemExt->BuildLimitGroup_Types.empty() || pItemExt->BuildLimitGroup_Nums.empty())
+		return false;
+
+	std::vector<int> limits = pItemExt->BuildLimitGroup_Nums;
+	const auto& extraTypes = pItemExt->BuildLimitGroup_ExtraLimit_Types;
+	const auto& extraNums = pItemExt->BuildLimitGroup_ExtraLimit_Nums;
+	const auto& extraMaxCount = pItemExt->BuildLimitGroup_ExtraLimit_MaxCount;
+	const int extraMaxNum = pItemExt->BuildLimitGroup_ExtraLimit_MaxNum;
+
+	for (size_t i = 0; i < extraTypes.size(); ++i)
+	{
+		if (i >= extraNums.size() || extraNums[i] <= 0)
+			continue;
+
+		int count = CountOwnedForBuildLimitGroup(pHouse, extraTypes[i]);
+
+		if (i < extraMaxCount.size() && extraMaxCount[i] > 0)
+			count = std::min(count, extraMaxCount[i]);
+
+		for (auto& limit : limits)
+		{
+			limit += count * extraNums[i];
+
+			if (extraMaxNum > 0)
+				limit = std::min(limit, extraMaxNum);
+		}
+	}
+
+	const int itemFactor = std::max(1, pItemExt->BuildLimitGroup_Factor.Get());
+	std::vector<int> current;
+	current.reserve(pItemExt->BuildLimitGroup_Types.size());
+
+	for (const auto pType : pItemExt->BuildLimitGroup_Types)
+	{
+		const auto pTypeExt = TechnoTypeExt::Fetch(pType);
+		const int factor = std::max(1, pTypeExt->BuildLimitGroup_Factor.Get());
+		const int owned = CountOwnedForBuildLimitGroup(pHouse, pType);
+		int queued = CountQueuedAndCurrentForBuildLimitGroup(pHouse, pType, pExtraFactory);
+
+		if (pType == pItem)
+			queued += additionalQueued;
+
+		current.push_back(owned * factor + queued * factor);
+	}
+
+	const bool contentIfAny = pItemExt->BuildLimitGroup_ContentIfAnyMatch.Get(
+		RulesExt::Global()->BuildLimitGroup_ContentIfAnyMatch);
+
+	if (limits.size() == 1)
+	{
+		int total = 0;
+
+		for (const int count : current)
+			total += count;
+
+		return total + itemFactor > limits[0];
+	}
+
+	const size_t size = std::min(limits.size(), current.size());
+	bool allReached = size > 0;
+	bool anyReached = false;
+	bool itemListed = false;
+
+	for (size_t i = 0; i < size; ++i)
+	{
+		const auto pType = pItemExt->BuildLimitGroup_Types[i];
+		const bool isItem = pType == pItem;
+		const int projected = current[i] + (isItem ? itemFactor : 0);
+		const bool reached = projected >= limits[i];
+
+		itemListed |= isItem;
+		anyReached |= reached;
+		allReached &= reached;
+	}
+
+	if (contentIfAny)
+		return anyReached;
+
+	return itemListed && allReached;
+}
+
+static bool IsBlockedByBuildLimit(HouseClass* const pHouse, const TechnoTypeClass* const pType, const FactoryClass* pExtraFactory = nullptr, int additionalQueued = 0)
+{
+	// This path is observational: an order that becomes temporarily impossible
+	// stays in the queue and can resume when a limit or dock becomes available.
+	if (IsBuildLimitGroupBlockedForQueue(pHouse, pType, pExtraFactory, additionalQueued))
 		return true;
 
 	if (pType->BuildLimit != 0)
 	{
 		if (pType->BuildLimit > 0)
 		{
-			// Same accounting as HouseExt::QueuedNum: the producing object is not
-			// counted against the limit until it leaves the factory.
-			int count = pHouse->CountOwnedNow(pType);
-
-			if (const auto pFactory = pHouse->GetPrimaryFactory(pType->WhatAmI(), pType->Naval, BuildCat::DontCare))
-			{
-				count += pFactory->CountTotal(pType);
-
-				if (pFactory->Object && pFactory->Object->GetType() == pType)
-					--count;
-			}
+			int count = pHouse->CountOwnedNow(pType)
+				+ CountQueuedForLimit(pHouse, pType, pExtraFactory)
+				+ CountCurrentForLimit(pHouse, pType, pExtraFactory)
+				+ additionalQueued;
 
 			if (count >= pType->BuildLimit)
 				return true;
@@ -852,10 +1035,10 @@ static bool IsBlockedByBuildLimit(HouseClass* const pHouse, const TechnoTypeClas
 		}
 	}
 
-	// Airport-bound aircraft: docks provided by owned aircraft factories
-	// (NumberOfDocks on the building type), occupied by present aircraft and
-	// reserved by queued ones.
-	if (pType->WhatAmI() == AbstractType::AircraftType && static_cast<const AircraftTypeClass*>(pType)->AirportBound)
+	// Airport-bound aircraft consume a dock from the moment they are being
+	// built. Count the current factory object as well as waiting queue entries.
+	if (pType->WhatAmI() == AbstractType::AircraftType
+		&& static_cast<const AircraftTypeClass*>(pType)->AirportBound)
 	{
 		int totalDocks = 0;
 		int docksUsed = 0;
@@ -882,6 +1065,13 @@ static bool IsBlockedByBuildLimit(HouseClass* const pHouse, const TechnoTypeClas
 						++docksUsed;
 					}
 				}
+
+				if (pFactory->Object && pFactory->Object->InLimbo
+					&& pFactory->Object->GetType()->WhatAmI() == AbstractType::AircraftType
+					&& static_cast<AircraftTypeClass*>(pFactory->Object->GetType())->AirportBound)
+				{
+					++docksUsed;
+				}
 			}
 		}
 
@@ -894,7 +1084,7 @@ static bool IsBlockedByBuildLimit(HouseClass* const pHouse, const TechnoTypeClas
 			}
 		}
 
-		if (docksUsed >= totalDocks)
+		if (docksUsed + additionalQueued >= totalDocks)
 			return true;
 	}
 
@@ -963,8 +1153,9 @@ DEFINE_HOOK(0x4C9D6E, FactoryClass_QueueProduction_CheckBuildable, 0x8)
 	GET(FactoryClass* const, pThis, ESI);
 	GET(TechnoTypeClass*, pType, EDI);
 	GET_STACK(HouseClass* const, pHouse, STACK_OFFSET(0x14, 0x8));
+	auto const pOrderHouse = pThis->Owner ? pThis->Owner : pHouse;
 
-	if (!pHouse->IsControlledByHuman() || !TechnoTypeExt::Fetch(pType)->Cameo_AlwaysExist.Get(RulesExt::Global()->Cameo_AlwaysExist) || !AllowGreyCameoQueue())
+	if (!pOrderHouse || !pOrderHouse->IsControlledByHuman() || !TechnoTypeExt::Fetch(pType)->Cameo_AlwaysExist.Get(RulesExt::Global()->Cameo_AlwaysExist) || !AllowGreyCameoQueue())
 		return 0;
 
 	auto& globalCount = ScenarioExt::Global()->CanBuildNowCount;
@@ -978,24 +1169,25 @@ DEFINE_HOOK(0x4C9D6E, FactoryClass_QueueProduction_CheckBuildable, 0x8)
 		}
 	}
 
-	auto buildCheck = [pHouse, &globalCount](TechnoTypeClass* pTechnoType) -> bool
+	auto buildCheck = [pOrderHouse, pThis, &globalCount](TechnoTypeClass* pTechnoType) -> bool
 	{
 		const auto pTechnoTypeExt = TechnoTypeExt::Fetch(pTechnoType);
 
 		if (pTechnoTypeExt->CanBuildNowCount != globalCount)
 		{
 			pTechnoTypeExt->CanBuildNowCount = globalCount;
-			auto canBuildNow = [pHouse](TechnoTypeClass* pTechnoType) -> bool
+			auto canBuildNow = [pOrderHouse](TechnoTypeClass* pTechnoType) -> bool
 			{
-				if (pHouse->CanBuild(pTechnoType, false, false) != CanBuildResult::Buildable)
-					return false;
-
-				return !IsBlockedByBuildLimit(pHouse, pTechnoType);
+				return pOrderHouse->CanBuild(pTechnoType, false, false) == CanBuildResult::Buildable;
 			};
 			pTechnoTypeExt->CanBuildNowCheck = canBuildNow(pTechnoType);
 		}
 
-		return pTechnoTypeExt->CanBuildNowCheck;
+		// Ares can append several orders during one click. The queue and
+		// the producing object can change while this probe is still running,
+		// so build-limit and dock checks must be evaluated for every candidate.
+		return pTechnoTypeExt->CanBuildNowCheck
+			&& !IsBlockedByBuildLimit(pOrderHouse, pTechnoType, pThis);
 	};
 
 	if (buildCheck(pType))
@@ -1005,11 +1197,18 @@ DEFINE_HOOK(0x4C9D6E, FactoryClass_QueueProduction_CheckBuildable, 0x8)
 
 	if (!isQueueCall)
 	{
-		if (pHouse->IsControlledByCurrentPlayer())
+		if (pOrderHouse->IsControlledByCurrentPlayer())
 			VocClass::PlayGlobal(RulesClass::Instance->ScoldSound, 0x2000, 1.0);
 	}
 	else if (pThis->QueuedObjects.Count > 0)
 	{
+		const int originalCount = pThis->QueuedObjects.Count;
+		std::vector<TechnoTypeClass*> originalQueue;
+		originalQueue.reserve(originalCount);
+
+		for (const auto pQueuedType : pThis->QueuedObjects)
+			originalQueue.push_back(pQueuedType);
+
 		const int maxIndex = pThis->QueuedObjects.Count - 1;
 		int checkIndex = 0;
 
@@ -1039,10 +1238,68 @@ DEFINE_HOOK(0x4C9D6E, FactoryClass_QueueProduction_CheckBuildable, 0x8)
 		}
 		while (maxIndex > checkIndex++);
 
-		pThis->QueuedObjects.Count = 0;
+		// Cameo.AlwaysExistAllowQueue intentionally keeps orders that are
+		// temporarily blocked by a limit or missing dock. The rotation above
+		// is only a probe, so restore the original waiting order when no
+		// candidate can start yet.
+		for (int i = 0; i < originalCount; ++i)
+			pThis->QueuedObjects.Items[i] = originalQueue[i];
+
+		pThis->QueuedObjects.Count = originalCount;
 	}
 
 	return CannotBuild;
+}
+
+// Ares 3.0p1 expands Shift+left-click into five production events at this
+// point. The native queue gate runs before that expansion, so it cannot see
+// the four additional orders. Reproduce Ares' event enqueue here while
+// applying the same limit checks after each accepted event.
+DEFINE_HOOK(0x6AB773, SelectClass_ProcessInput_ProduceUnsuspended_CheckLimits, 0xA)
+{
+	enum { Continue = 0x6AB7CC };
+
+	GET(EventClass* const, pEvent, EAX);
+	GET_STACK(const byte, modifiers, STACK_OFFSET(0xB8, 0x0));
+
+	int requested = 4 * (modifiers & 1) | 1;
+	int accepted = 0;
+
+	if (pEvent && pEvent->Type == EventType::Produce
+		&& pEvent->HouseIndex >= 0 && pEvent->HouseIndex < HouseClass::Array.Count)
+	{
+		const auto pHouse = HouseClass::Array.GetItem(pEvent->HouseIndex);
+		const auto pType = TechnoTypeClass::GetByTypeAndIndex(
+			pEvent->Produce.RTTIType, pEvent->Produce.HeapID);
+
+		if (pHouse && pType && pHouse->IsControlledByHuman())
+		{
+			while (accepted < requested
+				&& !IsBlockedByBuildLimit(pHouse, pType, nullptr, accepted))
+			{
+				pEvent->Frame = static_cast<unsigned int>(Unsorted::CurrentFrame);
+
+				if (!EventClass::OutList.Add(*pEvent))
+					break;
+
+				++accepted;
+			}
+
+			return Continue;
+		}
+	}
+
+	while (accepted < requested)
+	{
+		pEvent->Frame = static_cast<unsigned int>(Unsorted::CurrentFrame);
+
+		if (!EventClass::OutList.Add(*pEvent))
+			break;
+
+		++accepted;
+	}
+
+	return Continue;
 }
 
 #pragma endregion

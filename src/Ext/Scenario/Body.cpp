@@ -11,6 +11,9 @@
 #include <ThemeClass.h>
 #include <Ext/SWType/Body.h>
 
+#include <Commands/RecallCarrierAircraft.h>
+#include <Ext/Unit/Footprint.h>
+
 std::unique_ptr<ScenarioExt::ExtData> ScenarioExt::Data = nullptr;
 
 bool ScenarioExt::CellParsed = false;
@@ -319,6 +322,13 @@ DEFINE_HOOK(0x68AD2F, ScenarioClass_LoadFromINI, 0x5)
 DEFINE_HOOK(0x55B4E1, LogicClass_Update_BeforeAll, 0x5)
 {
 	VeinholeMonsterClass::UpdateAllVeinholes();
+
+	Footprint::ProcessPendingKills();
+	Footprint::ProcessPendingCarrierRemovals();
+	Footprint::ProcessCarrierIntents();
+	Footprint::UpdateCarrierArtDiag();
+	if (Footprint::MultiCellAllowed())
+		RecallCarrierAircraftCommandClass::EnsureStopRebind();
 
 	ScenarioExt::Global()->UpdateAutoDeathObjectsInLimbo();
 	ScenarioExt::Global()->UpdateTransportReloaders();

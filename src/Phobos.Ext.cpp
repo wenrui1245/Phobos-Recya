@@ -7,6 +7,7 @@
 #include <Ext/Anim/Body.h>
 #include <Ext/Infantry/Body.h>
 #include <Ext/Unit/Body.h>
+#include <Ext/Unit/Footprint.h>
 #include <Ext/Cell/Body.h>
 #include <Ext/EBolt/Body.h>
 #include <Ext/OverlayType/Body.h>
@@ -413,6 +414,7 @@ std::unordered_map<void*, std::weak_ptr<void>> SavegameGlobal::GlobalSharedRegis
 
 DEFINE_HOOK(0x67F7C8, LoadGame_Phobos_End, 0x5)
 {
+	Footprint::FixupAfterLoad();
 	SavegameGlobal::ClearSharedRegistry();
 	return 0;
 }

@@ -1304,7 +1304,7 @@ static int QueuedNum(const HouseClass* pHouse, const TechnoTypeClass* pType)
 	return queued;
 }
 
-bool HouseExt::ReachedBuildLimit(const HouseClass* pHouse, const TechnoTypeClass* pType, bool ignoreQueued)
+bool HouseExt::ReachedBuildLimit(const HouseClass* pHouse, const TechnoTypeClass* pType, bool ignoreQueued, bool removeQueued)
 {
 	const auto pTypeExt = TechnoTypeExt::Fetch(pType);
 
@@ -1383,9 +1383,15 @@ bool HouseExt::ReachedBuildLimit(const HouseClass* pHouse, const TechnoTypeClass
 		if (num + queued >= 1 - factor)
 		{
 			if (inside)
-				RemoveProduction(pHouse, pType, (num + queued + factor - 1) / factor);
+			{
+				if (removeQueued)
+					RemoveProduction(pHouse, pType, (num + queued + factor - 1) / factor);
+			}
 			else if (num >= 1 - factor || notBuildable)
-				RemoveProduction(pHouse, pType, -1);
+			{
+				if (removeQueued)
+					RemoveProduction(pHouse, pType, -1);
+			}
 
 			return true;
 		}
@@ -1417,7 +1423,7 @@ bool HouseExt::ReachedBuildLimit(const HouseClass* pHouse, const TechnoTypeClass
 				if (contentIfAny)
 				{
 					if (num >= 1 - factor || notBuildable)
-						RemoveProduction(pHouse, pType, (num + queued + factor - 1) / factor);
+						if (removeQueued) RemoveProduction(pHouse, pType, (num + queued + factor - 1) / factor);
 
 					return true;
 				}
@@ -1431,7 +1437,7 @@ bool HouseExt::ReachedBuildLimit(const HouseClass* pHouse, const TechnoTypeClass
 				if (contentIfAny)
 				{
 					if (num >= 0 || notBuildable)
-						RemoveProduction(pHouse, pType, -1);
+						if (removeQueued) RemoveProduction(pHouse, pType, -1);
 
 					return true;
 				}
@@ -1449,7 +1455,7 @@ bool HouseExt::ReachedBuildLimit(const HouseClass* pHouse, const TechnoTypeClass
 		if (reached)
 		{
 			if (realReached || notBuildable)
-				RemoveProduction(pHouse, pType, -1);
+				if (removeQueued) RemoveProduction(pHouse, pType, -1);
 
 			return true;
 		}

@@ -7,6 +7,7 @@
 #include <Ext/Anim/Body.h>
 #include <Ext/WeaponType/Body.h>
 #include <Ext/BulletType/Body.h>
+#include <Ext/Unit/Footprint.h>
 
 #pragma region Mission_Attack
 
@@ -371,6 +372,16 @@ DEFINE_HOOK(0x414F10, AircraftClass_AI_Trailer, 0x5)
 	GET(AircraftClass*, pThis, ESI);
 	REF_STACK(const CoordStruct, coords, STACK_OFFSET(0x40, -0xC));
 
+	// Carrier payloads are moved by SetLocation while following the moving
+	// ship. The engine would otherwise treat that as real flight and spawn a
+	// contrail under parked aircraft. Runway roll/alignment enables the trailer
+	// explicitly while InAir is still false.
+	const bool runwayTrail = Footprint::IsCarrierPayloadRunwayTrailEnabled(pThis);
+
+	if (Footprint::GetCarrierPayloadOwner(pThis) && !runwayTrail
+		&& (!pThis->InAir || Footprint::IsCarrierPayloadParked(pThis)))
+		return SkipGameCode;
+
 	auto const pTrailerAnim = GameCreate<AnimClass>(pThis->Type->Trailer, coords, 1, 1);
 	auto const pTrailerAnimExt = AnimExt::Fetch(pTrailerAnim);
 	AnimExt::SetAnimOwnerHouseKind(pTrailerAnim, pThis->Owner, nullptr, false, true);
@@ -398,6 +409,11 @@ DEFINE_HOOK(0x4CF31C, FlyLocomotionClass_FlightUpdate_LandingDir, 0x9)
 
 	const auto pFoot = *pFootPtr;
 	dir = 0;
+
+	// Manual carrier runway states set their own facing; do not let the
+	// landing-direction update restore PoseDir over it.
+	if (Footprint::IsCarrierPayloadRunwayControlled(pFoot))
+		return SkipGameCode;
 
 	if (!iFly)
 		return SetSecondaryFacing;
@@ -572,6 +588,34 @@ DEFINE_HOOK(0x419EF6, AircraftClass_Mission_Enter_FixNotCarryall, 0x7)
 	return pThis->Type->Carryall ? 0 : SkipGameCode;
 }
 
+// AircraftClass::Mission_Enter asks FootClass::FindDock (0x70D8F0) twice
+// whether a building airfield is available. A carrier payload with
+// AircraftCarrier.Attached=yes must never pick one: returning false here makes
+// the engine treat the aircraft as having no airfield, and the deck controller
+// in Footprint::UpdateCarrierPayload then sends it back to its carrier.
+static bool __fastcall AircraftClass_MissionEnter_FindDock_Attached(FootClass* pThis, void*)
+{
+	if (pThis && pThis->WhatAmI() == AbstractType::Aircraft)
+	{
+		auto const pAircraft = static_cast<AircraftClass*>(pThis);
+
+		if (auto const pCarrier = Footprint::GetCarrierPayloadOwner(pAircraft))
+		{
+			if (auto const pTypeExt = TechnoTypeExt::ExtMap.Find(pCarrier->GetTechnoType());
+				pTypeExt && pTypeExt->AircraftCarrier_Attached)
+			{
+				return false;
+			}
+		}
+	}
+
+	using FindDockFunc = bool(__fastcall*)(FootClass*, void*);
+	return reinterpret_cast<FindDockFunc>(0x70D8F0)(pThis, nullptr);
+}
+
+DEFINE_FUNCTION_JUMP(CALL, 0x419D86, AircraftClass_MissionEnter_FindDock_Attached);
+DEFINE_FUNCTION_JUMP(CALL, 0x419E1B, AircraftClass_MissionEnter_FindDock_Attached);
+
 // Skip set chaotic ArchiveTarget
 static void __fastcall AircraftClass_SetArchiveTarget_Wrapper(AircraftClass* pThis, void* _, AbstractClass* pTarget)
 {
@@ -590,6 +634,16 @@ DEFINE_HOOK(0x4CF190, FlyLocomotionClass_FlightUpdate_SetPrimaryFacing, 0x6) // 
 	enum { SkipGameCode = 0x4CF29A };
 
 	GET(IFlyControl* const, iFly, EAX);
+
+	// Carrier taxi/roll/descent are flown manually. The vanilla flight update
+	// keeps turning the nose toward its stale destination (or toward PoseDir
+	// when the destination is its own cell), which fights the manual facing and
+	// makes a landed aircraft shiver and slide sideways during takeoff taxi.
+	if (auto const ppFoot = reinterpret_cast<FootClass**>(R->ESI()))
+	{
+		if (Footprint::IsCarrierPayloadRunwayControlled(*ppFoot))
+			return SkipGameCode;
+	}
 
 	if (!iFly || !iFly->Is_Locked())
 	{
@@ -749,6 +803,43 @@ DEFINE_HOOK(0x4CE42A, FlyLocomotionClass_StateUpdate_NoLanding, 0x6) // Prevent 
 DEFINE_HOOK(0x414DA8, AircraftClass_Update_UnlandableDamage, 0x6) // After FootClass_Update
 {
 	GET(AircraftClass* const, pThis, ESI);
+
+	// Carrier payloads use a custom deck (no native airport). Handle their
+	// launch/park/rearm/return state here and keep the vanilla dock search out
+	// of the picture entirely.
+	if (Footprint::GetCarrierPayloadOwner(pThis))
+	{
+		const bool dying = !pThis->IsAlive || pThis->Health <= 0;
+
+		if (!dying)
+		{
+			Footprint::UpdateCarrierPayload(pThis);
+		}
+		else
+		{
+			// Never let the engine run the crash/landing update for a dying
+			// payload: that is the visible deck spin. Queue an immediate
+			// explosion + removal for the next global logic tick instead.
+			Footprint::HandleDyingCarrierPayload(pThis);
+			return 0x4151B0;
+		}
+
+		// A parked payload must not run the rest of AircraftClass::Update: its
+		// airport/landing logic keeps moving the aircraft and fights the deck
+		// pin every frame (visible jitter). Jump straight to the epilogue.
+		if (Footprint::IsCarrierPayloadParked(pThis)
+			|| Footprint::IsCarrierPayloadLanding(pThis)
+			|| Footprint::IsCarrierPayloadRunwayControlled(pThis)
+			|| Footprint::IsCarrierPayloadLandingSequence(pThis))
+		{
+			return 0x4151B0;
+		}
+
+		// The hook replaced `mov al, [esi + 0x90]`; restore the original value
+		// so the vanilla IsAlive branch does not depend on leftover AL.
+		R->AL(pThis->IsAlive);
+		return 0;
+	}
 
 	const auto pType = pThis->Type;
 
@@ -936,6 +1027,14 @@ DEFINE_HOOK(0x7001B0, TechnoClass_MouseOverObject_EnableGuardObject, 0x7)
 // Sleep: return to airbase if in incorrect sleep status
 static int __fastcall AircraftClass_Mission_Sleep(AircraftClass* pThis)
 {
+	// Carrier payloads under deck control must never enter AircraftClass's
+	// idle/return bookkeeping. A carrier has no native airport, so
+	// EnterIdleMode re-assigns a destination every frame and the engine then
+	// resets the aircraft's Z/facing while the runway controller is trying to
+	// taxi or line up. The deck controller owns those states.
+	if (Footprint::IsCarrierPayloadDeckControlled(pThis))
+		return 450;
+
 	if (!pThis->Destination || pThis->Destination == pThis->DockNowHeadingTo)
 		return 450; // Vanilla MissionClass_Mission_Sleep value
 
@@ -943,6 +1042,22 @@ static int __fastcall AircraftClass_Mission_Sleep(AircraftClass* pThis)
 	return 1;
 }
 DEFINE_FUNCTION_JUMP(VTABLE, 0x7E24A8, AircraftClass_Mission_Sleep)
+
+// AircraftClass::EnterIdleMode (0x4176F0) can also be reached from other
+// engine paths (auto-acquire, unlandable damage, scripted idle). Block it for
+// carrier payloads whose movement is owned by the deck controller, otherwise
+// it keeps re-arming a return destination behind the controller's back.
+bool __fastcall AircraftClass_EnterIdleMode_Wrapper(
+	AircraftClass* pThis, void* _, bool initial, bool unused)
+{
+	if (Footprint::IsCarrierPayloadDeckControlled(pThis))
+		return false;
+
+	using EnterIdleModeFn = bool(__thiscall*)(AircraftClass*, bool, bool);
+	return reinterpret_cast<EnterIdleModeFn>(0x4176F0)(pThis, initial, unused);
+}
+DEFINE_FUNCTION_JUMP(VTABLE, 0x7E2728, AircraftClass_EnterIdleMode_Wrapper)
+
 
 // AttackMove: return when no ammo or arrived destination
 static bool __fastcall AircraftTypeClass_CanAttackMove(AircraftTypeClass* pThis)
@@ -1069,14 +1184,14 @@ DEFINE_HOOK(0x4179F7, AircraftClass_EnterIdleMode_NoCrash, 0x6)
 
 	if (!pThis->Team && (pThis->CurrentMission != Mission::Area_Guard || !pThis->ArchiveTarget))
 	{
-		const auto pCell = pThis->FindNearestDock();
+		const auto pCell = reinterpret_cast<CellClass*(__thiscall*)(AircraftClass*)>(0x41A160)(pThis);
 		pThis->SetDestination(pCell, true);
 		pThis->SetArchiveTarget(pCell);
 		pThis->QueueMission(Mission::Area_Guard, true);
 	}
 	else if (!pThis->Destination)
 	{
-		const auto pCell = pThis->FindNearestDock();
+		const auto pCell = reinterpret_cast<CellClass*(__thiscall*)(AircraftClass*)>(0x41A160)(pThis);
 		pThis->SetDestination(pCell, true);
 	}
 

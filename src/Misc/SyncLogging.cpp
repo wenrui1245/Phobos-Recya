@@ -1,4 +1,5 @@
-﻿#include "SyncLogging.h"
+﻿#include <Ext/Unit/Footprint.h>
+#include "SyncLogging.h"
 
 #include <Helpers/Macro.h>
 #include <EventClass.h>
@@ -479,6 +480,10 @@ DEFINE_HOOK(0x6FCDB0, TechnoClass_AssignTarget_SyncLog, 0x5)
 	GET_STACK(AbstractClass*, pTarget, 0x4);
 	GET_STACK(const unsigned int, callerAddress, 0x0);
 
+	Footprint::RememberRunwayCommandTarget(pThis, pTarget);
+	if (pTarget && Footprint::IsCarrierPayloadRunwayControlled(pThis))
+		R->Stack(0x4, 0);
+
 	auto const RTTI = pThis->WhatAmI();
 
 	if (RTTI != AbstractType::Building && RTTI != AbstractType::Infantry)
@@ -494,6 +499,9 @@ DEFINE_HOOK(0x41AA80, AircraftClass_AssignDestination_SyncLog, 0x7)
 	GET(AircraftClass*, pThis, ECX);
 	GET_STACK(AbstractClass*, pDest, 0x4);
 	GET_STACK(const unsigned int, callerAddress, 0x0);
+
+	Footprint::RememberRunwayCommandDestination(pThis, pDest);
+	Footprint::NotifyDestinationAssigned(pThis, pDest);
 
 	SyncLogger::AddDestinationChangeSyncLogEvent(pThis, pDest, callerAddress);
 
@@ -540,6 +548,12 @@ DEFINE_HOOK(0x41BB30, AircraftClass_OverrideMission_SyncLog, 0x6)
 	GET(AircraftClass*, pThis, ECX);
 	GET_STACK(const int, mission, 0x4);
 	GET_STACK(const unsigned int, callerAddress, 0x0);
+
+	if (Footprint::ShouldSuppressCarrierMission(pThis, static_cast<Mission>(mission)))
+	{
+		R->Stack(0x4, static_cast<int>(Mission::Sleep));
+		return 0;
+	}
 
 	SyncLogger::AddMissionOverrideSyncLogEvent(pThis, mission, callerAddress);
 
@@ -707,3 +721,18 @@ DEFINE_FUNCTION_JUMP(CALL, 0x64731C, ComputeGameCRC);
 DEFINE_FUNCTION_JUMP(CALL, 0x647684, ComputeGameCRC);
 
 #pragma endregion
+
+DEFINE_HOOK(0x41BA90, AircraftClass_QueueMission_CarrierGate, 0x6)
+{
+	GET(TechnoClass*, pThis, ECX);
+	GET_STACK(const int, mission, 0x4);
+
+	if (Footprint::ShouldSuppressCarrierMission(pThis, static_cast<Mission>(mission)))
+	{
+		Debug::CarrierLog("[DiagCmd] QueueMission suppressed=%d plane=%p\n",
+			mission, static_cast<void*>(pThis));
+		R->Stack(0x4, static_cast<int>(Mission::Sleep));
+	}
+
+	return 0;
+}

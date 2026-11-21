@@ -157,10 +157,16 @@ DEFINE_HOOK(0x54E60A, Kamikaze_Remove_ResetTarget, 0x6)
 
 DEFINE_HOOK(0x41AA91, AircraftClass_SetDestination_SetRocketDestination, 0x7)
 {
-	enum { ContinueCheckLanding = 0x41AAB1, SetNoDestination = 0x41AA9C };
+	enum { ContinueCheckLanding = 0x41AAB1, SetNoDestination = 0x41AA9C, Return = 0x41ADB9 };
 
 	GET(AircraftClass*, pThis, ESI);
 	GET(AbstractClass*, pDest, EDI);
+
+	if (Footprint::IsCarrierPayloadRunwayControlled(pThis))
+	{
+		R->EAX(0);
+		return Return;
+	}
 
 	return pDest->IsInAir() && (!pThis->IsALoaner || !pThis->Type->MissileSpawn || !pThis->SpawnOwner) ? SetNoDestination : ContinueCheckLanding;
 }

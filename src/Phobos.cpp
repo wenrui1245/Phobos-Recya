@@ -1,5 +1,7 @@
 ﻿#include "Phobos.h"
 
+#include <Ext/Unit/Footprint.h>
+
 #include <Phobos.ECInit.h>
 
 #include <commctrl.h>
@@ -412,6 +414,7 @@ DEFINE_HOOK(0x67E68A, LoadGame_UnsetFlag, 0x5)
 
 DEFINE_HOOK(0x683E7F, ScenarioClass_Start_Optimizations, 0x7)
 {
+	Footprint::ClearAll();
 	Phobos::ApplyOptimizations();
 
 	for (const auto pTib : TiberiumClass::Array)

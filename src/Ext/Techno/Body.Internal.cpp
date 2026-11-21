@@ -1,4 +1,5 @@
-﻿#include <Ext/Foot/Body.h>
+﻿#include <Ext/Unit/Footprint.h>
+#include <Ext/Foot/Body.h>
 #include <Ext/HouseType/Body.h>
 #include <Ext/InfantryType/Body.h>
 
@@ -79,6 +80,37 @@ Matrix3D TechnoExt::GetFLHMatrix(TechnoClass* pThis, const CoordStruct& flh, boo
 // reversed from 6F3D60
 CoordStruct TechnoExt::GetFLHAbsoluteCoords(TechnoClass* pThis, const CoordStruct& flh, bool isOnTurret, int turIdx)
 {
+	auto const pType = pThis->GetTechnoType();
+	// SHP aircraft are drawn from PrimaryFacing, but the fly locomotor's
+	// Draw_Matrix is built from SecondaryFacing. The manual carrier deck
+	// controller only writes PrimaryFacing, so every FLH-based effect (laser
+	// trails, attachments, extra fire) would otherwise be placed using a stale
+	// SecondaryFacing. While such an aircraft is in the carrier's manual
+	// landing/takeoff sequence, compute its FLH from the facing the player
+	// actually sees instead.
+	if (!isOnTurret
+		&& pThis->WhatAmI() == AbstractType::Aircraft
+		&& pType
+		&& !pType->Voxel
+		&& pType->Image
+		&& (Footprint::IsCarrierPayloadLanding(pThis)
+			|| Footprint::IsCarrierPayloadRunwayControlled(pThis)
+			|| Footprint::IsCarrierPayloadLandingSequence(pThis)))
+	{
+		const double rad = pThis->PrimaryFacing.Current().GetRadian<65536>();
+		const double cosine = std::cos(rad);
+		const double sine = std::sin(rad);
+		const CoordStruct render = pThis->GetRenderCoords();
+
+		return CoordStruct
+		{
+			render.X + static_cast<int>(std::lround(flh.X * cosine + flh.Y * sine)),
+			render.Y + static_cast<int>(std::lround(-flh.X * sine + flh.Y * cosine)),
+			render.Z + flh.Z
+		};
+	}
+
+
 	auto result = TechnoExt::GetFLHMatrix(pThis, flh, isOnTurret, 1.0, false, turIdx).GetTranslation();
 
 	// apply as an offset to global object coords

@@ -1,3 +1,4 @@
+#include <Ext/Unit/Footprint.h>
 #include "Detach.h"
 
 #include <type_traits>
@@ -105,10 +106,22 @@ namespace Detach
 	{
 		switch (pTarget->WhatAmI())
 		{
-		case AbstractType::Unit: NotifyChain<UnitClass>(pTarget, removed); break;
-		case AbstractType::Aircraft: NotifyChain<AircraftClass>(pTarget, removed); break;
+		case AbstractType::Unit:
+			if (removed)
+				Footprint::OnPointerInvalidated(pTarget);
+			NotifyChain<UnitClass>(pTarget, removed);
+			break;
+		case AbstractType::Aircraft:
+			if (removed)
+				Footprint::OnPointerInvalidated(pTarget);
+			NotifyChain<AircraftClass>(pTarget, removed);
+			break;
 		case AbstractType::Infantry: NotifyChain<InfantryClass>(pTarget, removed); break;
-		case AbstractType::Building: NotifyChain<BuildingClass>(pTarget, removed); break;
+		case AbstractType::Building:
+			if (removed)
+				Footprint::OnPointerInvalidated(pTarget);
+			NotifyChain<BuildingClass>(pTarget, removed);
+			break;
 		case AbstractType::Anim: NotifyChain<AnimClass>(pTarget, removed); break;
 		case AbstractType::Bullet: NotifyChain<BulletClass>(pTarget, removed); break;
 		case AbstractType::Overlay: NotifyChain<OverlayClass>(pTarget, removed); break;

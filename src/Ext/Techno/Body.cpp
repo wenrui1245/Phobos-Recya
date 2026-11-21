@@ -2037,6 +2037,65 @@ void TechnoExt::OnDetach(AbstractClass* pTarget, bool removed)
 void TechnoExt::OnDetach(TechnoClass* pTarget, bool removed)
 {
 	AnnounceInvalidPointer(this->ShiftApplier, pTarget);
+	if (!removed)
+		return;
+	for (auto& pPayload : this->Footprint.CarrierPayloads)
+		AnnounceInvalidPointer(pPayload, pTarget);
+
+	for (auto& pDock : this->Footprint.CarrierDockBuildings)
+		AnnounceInvalidPointer(pDock, pTarget);
+
+	AnnounceInvalidPointer(this->Footprint.CarrierDockBuilding, pTarget);
+
+	auto fixRunway = [pTarget](CarrierRunwayState& runway)
+	{
+		AnnounceInvalidPointer(runway.Occupant, pTarget);
+		AnnounceInvalidPointer(runway.TakeoffRequest, pTarget);
+		AnnounceInvalidPointer(runway.CommandTarget, pTarget);
+		AnnounceInvalidPointer(runway.PendingTarget, pTarget);
+
+		for (auto& task : runway.TaxiTasks)
+			AnnounceInvalidPointer(task.Aircraft, pTarget);
+
+		for (auto& task : runway.Departures)
+		{
+			AnnounceInvalidPointer(task.Aircraft, pTarget);
+			AnnounceInvalidPointer(task.CommandTarget, pTarget);
+		}
+
+		if (!runway.Occupant && runway.Phase != CarrierRunwayPhase::Idle)
+		{
+			runway.Phase = CarrierRunwayPhase::Idle;
+			runway.Timer = 0;
+			runway.Speed = 0.0;
+			runway.MaxSpeed = 0.0;
+			runway.Acceleration = 0.0;
+			runway.Path.clear();
+			runway.PathIndex = 0;
+			runway.TrailEnabled = false;
+		}
+
+		runway.TaxiTasks.erase(
+			std::remove_if(runway.TaxiTasks.begin(), runway.TaxiTasks.end(),
+				[](const CarrierRunwayTaxiTask& task) { return task.Aircraft == nullptr; }),
+			runway.TaxiTasks.end());
+
+		runway.Departures.erase(
+			std::remove_if(runway.Departures.begin(), runway.Departures.end(),
+				[](const CarrierRunwayDeparture& task) { return task.Aircraft == nullptr; }),
+			runway.Departures.end());
+	};
+
+	fixRunway(this->Footprint.Runway);
+	fixRunway(this->Footprint.LandingRunway);
+
+	for (auto& runway : this->Footprint.TakeoffRunways)
+		fixRunway(runway);
+
+	for (auto& runway : this->Footprint.LandingRunways)
+		fixRunway(runway);
+
+
 }
 
 void TechnoExt::OnDetach(HouseClass* pTarget, bool removed)
@@ -2044,16 +2103,30 @@ void TechnoExt::OnDetach(HouseClass* pTarget, bool removed)
 	AnnounceInvalidPointer(this->ShiftApplierHouse, pTarget);
 }
 
+namespace
+{
+	constexpr unsigned FootprintStateTag = 0x31535046; // FPS1
+}
+
 void TechnoExt::LoadFromStream(PhobosStreamReader& Stm)
 {
 	RadioExt::LoadFromStream(Stm);
 	this->Serialize(Stm);
+	unsigned tag = 0;
+	if (Stm.Peek(tag) && tag == FootprintStateTag && Stm.Expect(FootprintStateTag))
+		this->Footprint.Serialize(Stm);
 }
 
 void TechnoExt::SaveToStream(PhobosStreamWriter& Stm)
 {
 	RadioExt::SaveToStream(Stm);
 	this->Serialize(Stm);
+	if (Footprint::IsMultiCell(this->OwnerObject()) || TechnoTypeExt::IsAircraftCarrier(this->OwnerObject()->GetTechnoType()) ||
+		Footprint::GetCarrierPayloadOwner(this->OwnerObject()))
+	{
+		Stm.Save(FootprintStateTag);
+		this->Footprint.Serialize(Stm);
+	}
 }
 
 bool TechnoExt::LoadGlobals(PhobosStreamReader& Stm)

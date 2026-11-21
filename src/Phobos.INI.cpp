@@ -1,6 +1,7 @@
 ﻿#include "Phobos.h"
 
 #include <GameOptionsClass.h>
+#include <Utilities/Debug.h>
 
 #include <Utilities/Parser.h>
 #include <Utilities/GeneralUtils.h>
@@ -42,6 +43,8 @@ bool Phobos::UI::CreditsIndicator_Smooth = true;
 bool Phobos::UI::WeedsCounter_Show = false;
 bool Phobos::UI::AnchoredToolTips = false;
 
+bool Phobos::Config::MultiCellDisabled = false;
+bool Phobos::Config::MultiCellDisabledInMultiplayer = true;
 bool Phobos::Config::DebugToolEnable = false;
 bool Phobos::Config::DisplayDamageNumbers = false;
 bool Phobos::Config::ToolTipDescriptions = true;
@@ -128,11 +131,14 @@ bool Phobos::Misc::CustomGS = false;
 int Phobos::Misc::CustomGS_ChangeInterval[7] = { -1, -1, -1, -1, -1, -1, -1 };
 int Phobos::Misc::CustomGS_ChangeDelay[7] = { 0, 1, 2, 3, 4, 5, 6 };
 int Phobos::Misc::CustomGS_DefaultDelay[7] = { 0, 1, 2, 3, 4, 5, 6 };
-bool Phobos::Misc::RightMouseDown = false;
 
 DEFINE_HOOK(0x5FACDF, OptionsClass_LoadSettings_LoadPhobosSettings, 0x5)
 {
 	const auto phobosSection = "Phobos";
+	Phobos::Config::MultiCellDisabled = CCINIClass::INI_RA2MD.ReadBool(phobosSection, "MultiCell.Disabled", false);
+	Phobos::Config::MultiCellDisabledInMultiplayer = CCINIClass::INI_RA2MD.ReadBool(phobosSection, "MultiCell.DisabledInMultiplayer", true);
+	Debug::VerboseCarrier = CCINIClass::INI_RA2MD.ReadBool(phobosSection, "Debug.AircraftCarrier", false);
+	Debug::CarrierArtDiag = CCINIClass::INI_RA2MD.ReadBool(phobosSection, "Debug.CarrierArtDiag", false);
 
 	Phobos::Config::ToolTipDescriptions = CCINIClass::INI_RA2MD.ReadBool(phobosSection, "ToolTipDescriptions", true);
 	Phobos::Config::ToolTipBlur = CCINIClass::INI_RA2MD.ReadBool(phobosSection, "ToolTipBlur", false);

@@ -32,6 +32,7 @@ public:
 		return static_cast<TechnoClass*>(this->GetAttachedObject());
 	}
 
+	FootprintState Footprint;
 	TechnoTypeExt* TypeExtData;
 	int RandomFactor;
 	std::unique_ptr<ShieldClass> Shield;

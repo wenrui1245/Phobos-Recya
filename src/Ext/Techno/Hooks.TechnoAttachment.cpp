@@ -7,6 +7,7 @@
 #include <Commands/DistributionMode.h>
 #include <Ext/TechnoType/Body.h>
 #include <Ext/Cell/Body.h>
+#include <Ext/Unit/Footprint.h>
 
 #include <Utilities/Helpers.Alex.h>
 #include <Utilities/Macro.h>
@@ -39,6 +40,9 @@ DEFINE_HOOK(0x4DEBB4, FootClass_OnDestroyed_NotifyParent, 0x8)
 
 	TechnoExt::HandleDestructionAsChild(pThis);
 
+	if (pThis->WhatAmI() == AbstractType::Unit)
+		Footprint::OnUnitDestroyed(static_cast<UnitClass*>(pThis));
+
 	return 0;
 }
 
@@ -48,6 +52,17 @@ DEFINE_HOOK(0x6F6F20, TechnoClass_Unlimbo_UnlimboAttachments, 0x6)
 
 	TechnoExt::UnlimboAttachments(pThis);
 
+	if (pThis->WhatAmI() == AbstractType::Unit)
+	{
+		auto const pUnit = static_cast<UnitClass*>(pThis);
+
+		if (Footprint::IsMultiCell(pUnit))
+		{
+			Footprint::EnsureLocomotor(pUnit);
+			Footprint::Mark(pUnit, pUnit->Location);
+		}
+	}
+
 	return 0;
 }
 
@@ -56,6 +71,9 @@ DEFINE_HOOK(0x6F6B1C, TechnoClass_Limbo_LimboAttachments, 0x6)
 	GET(TechnoClass*, pThis, ESI);
 
 	TechnoExt::LimboAttachments(pThis);
+
+	if (pThis->WhatAmI() == AbstractType::Unit)
+		Footprint::Release(static_cast<UnitClass*>(pThis));
 
 	return 0;
 }
@@ -859,6 +877,16 @@ DEFINE_HOOK(0x4817C3, CellClass_Incoming_HandleScatterWithAttachments, 0x0)
 
 	if (pTechno)
 	{
+		// Keep carrier payload aircraft above the 36x9 carrier hull without
+		// changing their flight facing or native airport behavior. Airborne
+		// payloads get a higher sort key so no island repaint triggered by a
+		// parked aircraft can cover them.
+		if (Footprint::GetCarrierPayloadOwner(pTechno))
+			return Footprint::GetCarrierPayloadYSort(pTechno);
+
+		if (Footprint::IsMultiCell(pTechno))
+			return Footprint::GetYSort(pTechno);
+
 		// we already checked that this is something that occupies the cell, see the hook above - Kerbiter
 		TechnoExt::GetTopLevelParent(pTechno)->Scatter(*pThreatCoord, isForced, isNoKidding);
 	}
@@ -877,6 +905,21 @@ DEFINE_HOOK(0x51D0DD, InfantryClass_Scatter_CheckAttachments, 0x6)
 
 // UpdateFiring
 /*
+static bool ShouldSkipMultiCellBodyRotation(UnitClass* pThis)
+{
+	if (!Footprint::IsMultiCell(pThis))
+		return false;
+
+	const auto pType = pThis->GetTechnoType();
+	const bool hasTurret = pType->Turret || pType->TurretCount > 0;
+	const bool moving = pThis->Locomotor && pThis->Locomotor->Is_Moving_Now();
+
+	// A turreted hull aims with the turret, and a moving hull's body is owned by
+	// the footprint locomotor. A stationary turretless hull must be allowed to
+	// rotate its body to aim, otherwise it can never fire.
+	return hasTurret || moving;
+}
+
 DEFINE_HOOK(0x736FB6, UnitClass_FiringAI_ForbidAttachmentRotation, 0x6)
 {
 	enum { SkipBodyRotation = 0x737063, ContinueCheck = 0x0 };
@@ -898,6 +941,26 @@ DEFINE_HOOK(0x736A2F, UnitClass_RotationAI_ForbidAttachmentRotation, 0x7)
 
 Action __fastcall UnitClass_MouseOverCell_Wrapper(UnitClass* pThis, void*, CellStruct const* pCell, bool checkFog, bool ignoreForce)
 {
+	// A hull cell other than the anchor has no object in the cell list. Route the
+	// cursor/action query through the anchor cell so left-click selects, right-
+	// click moves, and enemy hulls show the attack cursor instead of Move.
+	if (pCell && Footprint::IsMultiCell(pThis))
+	{
+		const auto pState = Footprint::GetState(pThis);
+
+		if (pState && pState->Initialized)
+		{
+			const bool ownCell = Footprint::OwnerAt(*pCell, false) == pThis
+				|| Footprint::OwnerAt(*pCell, true) == pThis;
+
+			if (ownCell && *pCell != pState->Anchor)
+			{
+				CellStruct anchor = pState->Anchor;
+				return pThis->UnitClass::MouseOverCell(&anchor, checkFog, ignoreForce);
+			}
+		}
+	}
+
 	Action result = pThis->UnitClass::MouseOverCell(pCell, checkFog, ignoreForce);
 
 	if (!TechnoExt::Fetch(pThis)->ParentAttachment)
@@ -983,6 +1046,15 @@ DEFINE_HOOK(0x6DA4FB, TacticalClass_SelectAt_TransparentToMouse_OccupierPtr, 0x6
 		break;
 	}
 
+	// Never substitute the footprint owner here. TacticalClass::SelectAt is
+	// called recursively by the engine's target-resolution fallback; returning
+	// an object that is not in the cell's real object list makes it recurse
+	// until the stack overflows. Multi-cell selection is handled by the click
+	// path and CellClass::GetSomeObject instead.
+	// Never consume or null an occupied cell here. This hook runs for cursor
+	// selection, not only for clicks; returning nullptr used to send the engine
+	// into its multi-cell fallback and overflow the stack. Click intents are
+	// captured in DisplayClass_ProcessClickCoords instead.
 	R->EAX<ObjectClass*>(pFoundObject);
 	return 0x6DA501;
 }

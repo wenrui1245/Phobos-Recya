@@ -1,5 +1,7 @@
 ﻿#include "Commands.h"
 
+#include "RecallCarrierAircraft.h"
+#include "DumpCarrierState.h"
 #include "ObjectInfo.h"
 #include "NextIdleHarvester.h"
 #include "QuickSave.h"
@@ -47,6 +49,9 @@
 DEFINE_HOOK(0x533066, CommandClassCallback_Register, 0x6)
 {
 	// Load it after Ares'
+
+	MakeCommand<RecallCarrierAircraftCommandClass>();
+	MakeCommand<DumpCarrierStateCommandClass>();
 
 	if (Phobos::Config::NextIdleHarvesterCommand)
 		MakeCommand<NextIdleHarvesterCommandClass>();

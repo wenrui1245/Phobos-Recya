@@ -197,6 +197,13 @@ namespace Helpers
 						set.insert(pTechno);
 					}
 				}
+
+				// Multi-cell units keep only the anchor object in the cell content.
+				// The other hull cells are represented by the footprint owner table,
+				// but injecting those owners here feeds them into the custom
+				// Detonate target set. Base damage is already handled by
+				// MapClass::DamageArea, so keep this path untouched.
+
 			}
 
 			// flying objects are not included normally

@@ -1,4 +1,6 @@
-﻿#include <PreviewClass.h>
+﻿#include <Ext/Unit/Footprint.h>
+#include <PreviewClass.h>
+#include <Ext/Unit/FootprintDebug.h>
 #include <ThemeClass.h>
 #include <FPSCounter.h>
 
@@ -300,6 +302,12 @@ DEFINE_HOOK(0x6A86ED, StripClass_OperatorLessThan_SortCameoByNameTechno, 0x6)
 DEFINE_HOOK(0x6D4684, TacticalClass_Draw_FlyingStrings, 0x6)
 {
 	FlyingStrings::UpdateAll();
+	if (Footprint::MultiCellAllowed())
+	{
+		Footprint::DrawCarrierBlockedCellsOverlay();
+		Footprint::DrawCarrierDeckSlotsOverlay();
+		FootprintDebug::Draw();
+	}
 	return 0;
 }
 

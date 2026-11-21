@@ -1,4 +1,5 @@
 // methods used in TechnoClass_AI hooks or anything similar
+#include <Ext/Unit/Footprint.h>
 #include <Ext/Rules/Body.h>
 #include <Ext/Anim/Body.h>
 #include <Ext/Bullet/Body.h>
@@ -555,6 +556,27 @@ void TechnoExt::UpdateLaserTrails()
 	auto const pOwner = pThis->Owner;
 	auto const cloakState = pThis->CloakState;
 
+	// A parked carrier payload is moved by SetLocation to follow the moving
+	// deck. Without this gate the LaserTrail system treats that displacement as
+	// flight and draws a contrail behind aircraft that are sitting still.
+	// The one exception is the takeoff roll: the aircraft is still on the
+	// deck, but the runway controller explicitly wants its existing J35
+	// LaserTrail visible.
+	const bool runwayRollTrail = Footprint::IsCarrierPayloadRunwayTrailEnabled(pThis);
+
+	if (Footprint::GetCarrierPayloadOwner(pThis)
+		&& !runwayRollTrail
+		&& (!pThis->InAir || Footprint::IsCarrierPayloadParked(pThis)))
+	{
+		for (auto const& pTrail : this->LaserTrails)
+		{
+			pTrail->Visible = false;
+			pTrail->LastLocation = {};
+		}
+
+		return;
+	}
+
 	// LaserTrails update routine is in TechnoClass::AI hook because LaserDrawClass-es are updated in LogicClass::AI
 	for (const auto& pTrail : this->LaserTrails)
 	{
@@ -589,8 +611,7 @@ void TechnoExt::UpdateLaserTrails()
 
 		if (pType->DrawType == LaserTrailDrawType::Anim)
 		{
-			// 起步/刹车动画各自只在状态切换时播放一次，用当前任务判定移动状态（同 KratosPP，且不受每帧更新次数影响）
-			bool const isMoving = pThis->CurrentMission == Mission::Move || pThis->CurrentMission == Mission::AttackMove;
+			const bool isMoving = pThis->CurrentMission == Mission::Move || pThis->CurrentMission == Mission::AttackMove;
 
 			if (isMoving != pTrail->IsMoving)
 			{

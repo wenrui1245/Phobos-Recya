@@ -82,9 +82,6 @@ DEFINE_HOOK_AGAIN(0x6AB236, EventClass_OutList_MakeRoom, 0xA)
 DEFINE_HOOK_AGAIN(0x6AB34E, EventClass_OutList_MakeRoom, 0xA)
 DEFINE_HOOK_AGAIN(0x6AB401, EventClass_OutList_MakeRoom, 0xA)
 DEFINE_HOOK_AGAIN(0x6AB516, EventClass_OutList_MakeRoom, 0xA)
-// 0x6AB773 is deliberately not hooked: Ares 3.0p1 hooks the same `cmp` there as
-// SelectClass_ProcessInput_ProduceUnsuspended, and the other seven capacity checks of this
-// function are already covered above, so letting Ares keep that one costs little.
 DEFINE_HOOK_AGAIN(0x730F71, EventClass_OutList_MakeRoom, 0xA)
 DEFINE_HOOK_AGAIN(0x73188F, EventClass_OutList_MakeRoom, 0xA)
 DEFINE_HOOK_AGAIN(0x7319A1, EventClass_OutList_MakeRoom, 0xA)
